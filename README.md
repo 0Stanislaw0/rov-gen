@@ -73,5 +73,7 @@ system_metadata:
       approver_title: "Начальник отдела"
       owner_name: "Петров П.П."
       owner_contacts: "petrov@example.com"
+      email_to: ["recipient@example.com"]
+      email_recipients: ["cc-recipient@example.com"]
       block_val: "Блок IT"
 ```

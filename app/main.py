@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from email.message import EmailMessage
+from email.utils import formatdate
 from pydantic import BaseModel
 from starlette.background import BackgroundTask # Оставляем импорт, но убираем использование в /generate
 from typing import List, Optional
@@ -51,6 +53,8 @@ class HistoryItem(BaseModel):
     release_data: ReleaseData # Полные данные, использованные для генерации
     generated_filename: str # Имя файла, которое видит пользователь (например, "РОВ_АС_ФП_Релиз.docx")
     disk_filename: str # Уникальное имя файла на диске (например, "a1b2c3d4e5f6.docx")
+    email_generated_filename: Optional[str] = None
+    email_disk_filename: Optional[str] = None
 
 # Вспомогательные функции для работы с историей
 def load_history() -> List[HistoryItem]:
@@ -72,7 +76,7 @@ def save_history(history_data: List[HistoryItem]):
         # Преобразуем Pydantic модели в словари для JSON сериализации
         json.dump([item.dict() for item in history_data], f, ensure_ascii=False, indent=4, default=str)
 
-def add_to_history(release_data: ReleaseData, generated_filename: str, disk_filename: str):
+def add_to_history(release_data: ReleaseData, generated_filename: str, disk_filename: str, email_gen: str = None, email_disk: str = None):
     """Добавляет новую запись в историю."""
     history = load_history()
     new_item = HistoryItem(
@@ -80,7 +84,9 @@ def add_to_history(release_data: ReleaseData, generated_filename: str, disk_file
         timestamp=datetime.now(),
         release_data=release_data,
         generated_filename=generated_filename,
-        disk_filename=disk_filename
+        disk_filename=disk_filename,
+        email_generated_filename=email_gen,
+        email_disk_filename=email_disk
     )
     history.insert(0, new_item) # Добавляем в начало для хронологического порядка
     save_history(history)
@@ -130,7 +136,9 @@ def get_history_list():
             "as_system": item.release_data.as_system,
             "fp_system": item.release_data.fp_system,
             "generated_filename": item.generated_filename,
-            "disk_filename": item.disk_filename # Нужно для ссылки на скачивание
+            "disk_filename": item.disk_filename,
+            "email_generated_filename": item.email_generated_filename,
+            "email_disk_filename": item.email_disk_filename
         }
         for item in history
     ]
@@ -163,202 +171,191 @@ def delete_history_item(item_id: str):
     if file_path.exists():
         file_path.unlink()
 
+    if item_to_delete.email_disk_filename:
+        email_path = BASE_DIR / item_to_delete.email_disk_filename
+        if email_path.exists():
+            email_path.unlink()
+
     # Сохраняем историю без этого элемента
     new_history = [i for i in history if i.id != item_id]
     save_history(new_history)
     return {"status": "success", "message": f"Запись {item_id} и файл удалены"}
 
+def prepare_release_context(data: ReleaseData):
+    """Общая логика подготовки данных для шаблона и письма."""
+    # Валидация FP
+    valid_fps = CONFIG.get("fp_mapping", {}).get(data.as_system, [])
+    if data.fp_system not in valid_fps:
+        raise ValueError(f"Система {data.fp_system} не входит в состав {data.as_system}")
+
+    # Извлекаем дополнительные метаданные из конфига
+    system_meta = CONFIG.get("system_metadata", {}).get(data.as_system, {}).get(data.fp_system, {})
+    
+    start_dt = parse_date(data.start_date_time)
+    current_time = start_dt
+    
+    def process_stages(stages_list, start_from):
+        table = []
+        t = start_from
+        for idx, stage in enumerate(stages_list, 1):
+            duration_min = parse_duration(stage.duration_raw)
+            end_time = t + timedelta(minutes=duration_min)
+            s_str = t.strftime('%d.%m.%y %H:%M')
+            e_str = end_time.strftime('%d.%m.%y %H:%M')
+            table.append({
+                "id": str(idx),
+                "work": stage.description.strip(),
+                "start_time": s_str,
+                "end_time": e_str,
+                "interval": f"{s_str} - {e_str}",
+                "comment": stage.comment.strip() if stage.comment else ""
+            })
+            t = end_time
+        return table, t
+
+    work_table, current_time = process_stages(data.stages, start_dt)
+
+    dp_start = current_time
+    tmp_end = dp_start + timedelta(minutes=30)
+    rem = tmp_end.minute % 30
+    dp_end = tmp_end if rem == 0 else tmp_end + timedelta(minutes=(30 - rem))
+    dp_end = dp_end.replace(second=0, microsecond=0)
+
+    def format_relative(minutes):
+        if minutes == 0: return "Y"
+        h, m = divmod(minutes, 60)
+        return f"Y + {h:02d}:{m:02d}"
+
+    rollback_table = []
+    accumulated_mins = 0
+    for idx, stage in enumerate(data.rollback_stages, 1):
+        dur = parse_duration(stage.duration_raw)
+        start_rel = format_relative(accumulated_mins)
+        accumulated_mins += dur
+        end_rel = format_relative(accumulated_mins)
+        rollback_table.append({
+            "id": str(idx),
+            "work": stage.description.strip(),
+            "start_time": start_rel,
+            "end_time": end_rel,
+            "interval": f"{start_rel} - {end_rel}",
+            "comment": stage.comment.strip() if stage.comment else ""
+        })
+
+    context = {
+        "RELEASE_NUMBER": str(data.release_number).strip(),
+        "START_DATE": start_dt.strftime('%d.%m.%y'),
+        "START_TIME": start_dt.strftime('%H:%M'),
+        "AS": str(data.as_system).strip(),
+        "FP": str(data.fp_system).strip(),
+        "RESPONSIBLE": str(data.responsible).strip(),
+        "CONTACTS": str(data.contacts).strip(),
+        "DESCRIPTION": str(data.description).strip(),
+        "POSSIBLE_DOWNTIME": str(data.possible_downtime).strip(),
+        "WORK_TABLE": work_table,
+        "ROLLBACK_TABLE": rollback_table,
+        "DP_START": dp_start.strftime('%H:%M'),
+        "DP_END": dp_end.strftime('%H:%M'),
+        "APPROVER_NAME": system_meta.get("approver_name", ""),
+        "APPROVER_TITLE": system_meta.get("approver_title", ""),
+        "OWNER_NAME": system_meta.get("owner_name", ""),
+        "OWNER_CONTACTS": system_meta.get("owner_contacts", ""),
+        "EMAIL_TO": ", ".join(system_meta.get("email_to") or []) if isinstance(system_meta.get("email_to"), list) else (system_meta.get("email_to") or ""),
+        "BLOCK_VAL": system_meta.get("block_val", "")
+    }
+    return context, system_meta
+
+def get_safe_filenames(data: ReleaseData):
+    safe_fp = re.sub(r'[\\/*?:"<>|]', "_", data.fp_system)
+    safe_release = re.sub(r'[\\/*?:"<>|]', "_", data.release_number)
+    base_name = f"РОВ_{safe_fp}_{safe_release}"
+    return (
+        f"{base_name}.docx", 
+        f"{uuid.uuid4().hex}.docx",
+        f"Письмо_{safe_fp}_{safe_release}.eml",
+        f"{uuid.uuid4().hex}.eml"
+    )
+
+def find_template():
+    """Поиск шаблона template.docx в возможных папках."""
+    possible_paths = [BASE_DIR / "templates" / "template.docx", BASE_DIR / "app" / "templates" / "template.docx"]
+    return next((p for p in possible_paths if p.exists()), None)
+
+def create_eml_content(data: ReleaseData, system_meta: dict):
+    """Создает объект EmailMessage."""
+    to_list = system_meta.get("email_to") or []
+    if isinstance(to_list, str): to_list = [to_list]
+    cc_list = system_meta.get("email_recipients") or []
+    if isinstance(cc_list, str): cc_list = [cc_list]
+
+    msg = EmailMessage()
+    msg.set_content(f"Коллеги, добрый день!\n\nСформировано РОВ для {data.fp_system}.\n\nСгенерировано автоматически.")
+    msg['Subject'] = f"РОВ: {data.as_system} / {data.fp_system} - Релиз {data.release_number}"
+    msg['From'] = f"{data.responsible} <no-reply@example.com>"
+    msg['To'] = ", ".join(to_list)
+    msg['Cc'] = ", ".join(cc_list)
+    msg['Date'] = formatdate(localtime=True)
+    return msg
+
 @app.post("/generate")
 def generate_report(data: ReleaseData):
     try:
-        # Валидация FP
-        valid_fps = CONFIG.get("fp_mapping", {}).get(data.as_system, [])
-        if data.fp_system not in valid_fps:
-            raise ValueError(f"Система {data.fp_system} не входит в состав {data.as_system}")
+        context, system_meta = prepare_release_context(data)
+        clean_docx, disk_docx, clean_eml, disk_eml = get_safe_filenames(data)
+        file_path = BASE_DIR / disk_docx
+        eml_path = BASE_DIR / disk_eml
 
-        # Извлекаем дополнительные метаданные из конфига (скрытые от пользователя)
-        system_meta = CONFIG.get("system_metadata", {}).get(data.as_system, {}).get(data.fp_system, {})
-        
-        start_dt = parse_date(data.start_date_time)
-        current_time = start_dt
-        
-        def process_stages(stages_list, start_from):
-            table = []
-            t = start_from
-            for idx, stage in enumerate(stages_list, 1):
-                duration_min = parse_duration(stage.duration_raw)
-                end_time = t + timedelta(minutes=duration_min)
-                
-                s_str = t.strftime('%d.%m.%y %H:%M')
-                e_str = end_time.strftime('%d.%m.%y %H:%M')
-                
-                table.append({
-                    "id": str(idx),
-                    "work": stage.description.strip(),
-                    "start_time": s_str,
-                    "end_time": e_str,
-                    "interval": f"{s_str} - {e_str}",
-                    "comment": stage.comment.strip() if stage.comment else ""
-                })
-                t = end_time
-            return table, t
-
-        # 1. План работ
-        work_table, current_time = process_stages(data.stages, start_dt)
-
-        # 2. Точка принятия решения (DP)
-        # Начало - сразу после работ
-        dp_start = current_time
-        # Конец - минимум +30 мин и округление вверх до ближайших 30 минут
-        tmp_end = dp_start + timedelta(minutes=30)
-        rem = tmp_end.minute % 30
-        dp_end = tmp_end if rem == 0 else tmp_end + timedelta(minutes=(30 - rem))
-        dp_end = dp_end.replace(second=0, microsecond=0)
-
-        # 3. План отката (относительное время от точки Y)
-        def format_relative(minutes):
-            if minutes == 0:
-                return "Y"
-            h = minutes // 60
-            m = minutes % 60
-            return f"Y + {h:02d}:{m:02d}"
-
-        rollback_table = []
-        accumulated_mins = 0
-        for idx, stage in enumerate(data.rollback_stages, 1):
-            dur = parse_duration(stage.duration_raw)
-            start_rel = format_relative(accumulated_mins)
-            accumulated_mins += dur
-            end_rel = format_relative(accumulated_mins)
-            
-            rollback_table.append({
-                "id": str(idx),
-                "work": stage.description.strip(),
-                "start_time": start_rel,
-                "end_time": end_rel,
-                "interval": f"{start_rel} - {end_rel}",
-                "comment": stage.comment.strip() if stage.comment else ""
-            })
-
-        context = {
-            "RELEASE_NUMBER": str(data.release_number).strip(),
-            "START_DATE": start_dt.strftime('%d.%m.%y'),
-            "START_TIME": start_dt.strftime('%H:%M'),
-            "AS": str(data.as_system).strip(),
-            "FP": str(data.fp_system).strip(),
-            "RESPONSIBLE": str(data.responsible).strip(),
-            "CONTACTS": str(data.contacts).strip(),
-            "DESCRIPTION": str(data.description).strip(),
-            "POSSIBLE_DOWNTIME": str(data.possible_downtime).strip(),
-            "WORK_TABLE": work_table,
-            "ROLLBACK_TABLE": rollback_table,
-            # Точка принятия решения
-            "DP_START": dp_start.strftime('%H:%M'),
-            "DP_END": dp_end.strftime('%H:%M'),
-            # Метаданные из конфига
-            "APPROVER_NAME": system_meta.get("approver_name", ""),
-            "APPROVER_TITLE": system_meta.get("approver_title", ""),
-            "OWNER_NAME": system_meta.get("owner_name", ""),
-            "OWNER_CONTACTS": system_meta.get("owner_contacts", ""),
-            "BLOCK_VAL": system_meta.get("block_val", "")
-        }
-
-        # Очищаем имя файла от запрещенных символов на всякий случай
-        # Добавляем более жесткую очистку имени файла
-        safe_fp = re.sub(r'[\\/*?:"<>|]', "_", data.fp_system)
-        safe_release = re.sub(r'[\\/*?:"<>|]', "_", data.release_number)
-        clean_filename = f"РОВ_{safe_fp}_{safe_release}.docx"
-        
-        # Генерируем УНИКАЛЬНОЕ имя для файла на диске, чтобы запросы не пересекались
-        unique_disk_name = f"{uuid.uuid4().hex}.docx"
-        file_path = BASE_DIR / unique_disk_name
-
-        # Список возможных путей к шаблону для гибкости
-        possible_paths = [
-            BASE_DIR / "templates" / "template.docx",
-            BASE_DIR / "app" / "templates" / "template.docx"
-        ]
-        
-        template_path = next((p for p in possible_paths if p.exists()), None)
-
+        # Поиск шаблона
+        template_path = find_template()
         if not template_path:
-            raise FileNotFoundError(f"Шаблон template.docx не найден. Проверенные пути: {[str(p) for p in possible_paths]}")
+            raise FileNotFoundError("Шаблон template.docx не найден")
 
-        print(f"DEBUG: Начинаю генерацию. Файл будет тут: {file_path.absolute()}")
-
-        # Проверяем, что файл не пустой
-        if template_path.stat().st_size == 0:
-            raise ValueError(f"Файл шаблона {template_path} пуст. Пожалуйста, замените его корректным документом Word .docx")
-
-        try:
-            generate_docx(str(template_path), str(file_path), context)
-        except Exception as e:
-            print(f"TRACEBACK: {traceback.format_exc()}")
-            raise ValueError(f"Ошибка генерации DOCX: {str(e)}. Проверьте, что теги в шаблоне корректны и не разорваны форматированием.")
+        generate_docx(str(template_path), str(file_path), context)
         
-        # Проверяем, что файл был успешно создан и не пуст
-        if not file_path.exists() or file_path.stat().st_size == 0:
-            # Если файл был создан, но пуст, удаляем его
-            if file_path.exists():
-                file_path.unlink(missing_ok=True)
-            raise ValueError("Сгенерированный файл пуст или не существует. Возможно, ошибка в процессе генерации DOCX.")
-        
-        print(f"DEBUG: Сгенерирован файл {file_path}, размер: {file_path.stat().st_size} байт")
+        # Генерируем EML сразу
+        msg = create_eml_content(data, system_meta)
+        with open(eml_path, 'wb') as f:
+            f.write(msg.as_bytes())
 
-        # Сохраняем успешную генерацию в историю
-        add_to_history(data, clean_filename, unique_disk_name)
+        # Сохраняем в историю ссылки на оба файла
+        add_to_history(data, clean_docx, disk_docx, clean_eml, disk_eml)
 
-        # Кодируем имя файла для безопасной передачи кириллицы
-        encoded_name = urllib.parse.quote(clean_filename)
-        content_disposition = f'attachment; filename="report.docx"; filename*=utf-8\'\'{encoded_name}'
-
+        encoded_name = urllib.parse.quote(clean_docx)
         return FileResponse(
             path=str(file_path),
-            media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            headers={
-                "Content-Disposition": content_disposition,
-                "Access-Control-Expose-Headers": "Content-Disposition",
-                "Cache-Control": "no-cache"
-            }
+            media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document', filename=clean_docx
         )
-
     except Exception as e:
+        print(traceback.format_exc())
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/generate-email")
+def generate_email(data: ReleaseData):
+    # Оставляем метод для прямой генерации, если нужно
+    _, system_meta = prepare_release_context(data)
+    _, _, clean_eml, _ = get_safe_filenames(data)
+
+    msg = create_eml_content(data, system_meta)
+    temp_eml = BASE_DIR / f"temp_{uuid.uuid4().hex}.eml"
+    with open(temp_eml, 'wb') as f: f.write(msg.as_bytes())
+    
+    return FileResponse(path=str(temp_eml), media_type='message/rfc822', filename=clean_eml, background=BackgroundTask(lambda: temp_eml.unlink(missing_ok=True)))
 
 @app.get("/download/{filename}")
 async def download_file(filename: str, pretty_name: str = None):
-    # Декодируем имя файла, так как браузер может прислать его в URL-encoded виде (кириллица)
     decoded_filename = urllib.parse.unquote(filename)
-    # Ограничиваем доступ только к файлам .docx в корне, предотвращая Path Traversal
-    if ".." in decoded_filename or not decoded_filename.endswith(".docx"):
+    if ".." in decoded_filename or not (decoded_filename.endswith(".docx") or decoded_filename.endswith(".eml")):
         raise HTTPException(status_code=403, detail="Доступ запрещен")
 
-    # Ищем файлы в корне проекта
     file_path = BASE_DIR / decoded_filename
-    
-    print(f"DEBUG: Попытка скачивания файла: {file_path}")
-    
     if not file_path.exists():
-        print(f"DEBUG: Файл не найден: {file_path}")
-        raise HTTPException(status_code=404, detail=f"Файл {decoded_filename} не найден на сервере")
+        raise HTTPException(status_code=404, detail="Файл не найден")
+
+    media_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' if decoded_filename.endswith(".docx") else 'message/rfc822'
     
-    # Если передано красивое имя, используем его, иначе используем имя файла на диске
-    final_name = pretty_name if pretty_name else decoded_filename
-
-    # Кодируем имя файла только для части filename* (стандарт RFC 5987)
-    # В обычном filename оставляем ASCII-безопасное имя
-    safe_name = "report.docx"
-    encoded_name = urllib.parse.quote(final_name)
-    content_disposition = f'attachment; filename="{safe_name}"; filename*=utf-8\'\'{encoded_name}'
-
-    return FileResponse(
-        path=str(file_path), 
-        media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        headers={
-            "Content-Disposition": content_disposition,
-            "Cache-Control": "no-cache"
-        }
-    )
+    # Используем pretty_name для заголовка Content-Disposition, если оно передано
+    display_name = pretty_name if pretty_name else decoded_filename # pretty_name уже декодирован
+    return FileResponse(path=str(file_path), media_type=media_type, filename=display_name)
 
 static_dir = BASE_DIR / "app" / "static"
 

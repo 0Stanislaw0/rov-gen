@@ -77,7 +77,8 @@
                 <button type="button" onclick="addStage('rollback_list')">+ Добавить этап отката</button>
             </div>
 
-            <button onclick="generateDocx()" style="background: green; width: 100%; font-size: 1.2em; margin-bottom: 50px;">Сгенерировать DOCX</button>
+            <button onclick="generateDocx()" style="background: #28a745; width: 100%; font-size: 1.2em; margin-bottom: 10px;">Сгенерировать DOCX + Письмо</button>
+            <button onclick="generateEmailOnly()" style="background: #17a2b8; width: 100%; font-size: 1.1em; margin-bottom: 50px;">Только Письмо (без сохранения)</button>
         </main>
 
         <div class="right-spacer"></div>
@@ -168,7 +169,12 @@
                             <small>${timestamp}</small>
                         </div>
                         <div class="history-item-actions">
-                            <button onclick="downloadHistoryItem('${item.disk_filename}', '${encodeURIComponent(item.generated_filename)}')">Скачать</button>
+                            <button onclick="downloadHistoryItem('${item.disk_filename}', '${encodeURIComponent(item.generated_filename)}')">DOCX</button>
+                            ${item.email_disk_filename ? 
+                                `<button onclick="downloadHistoryItem('${item.email_disk_filename}', '${encodeURIComponent(item.email_generated_filename)}')" style="background: #6c757d;">
+                                    EML
+                                 </button>` : 
+                                ''}
                             <button onclick="loadHistoryItemToForm('${item.id}')">Загрузить в форму</button>
                             <button onclick="deleteHistoryItem('${item.id}')" style="background: #dc3545;">Удалить</button>
                         </div>
@@ -239,20 +245,14 @@
             }
         }
 
-        async function generateDocx() {
-            const collectStages = (containerId) => {
-                const items = [];
-                document.getElementById(containerId).querySelectorAll('.stage').forEach(s => {
-                    items.push({
-                        description: s.querySelector('.s-desc').value,
-                        duration_raw: s.querySelector('.s-dur').value,
-                        comment: s.querySelector('.s-comm').value
-                    });
-                });
-                return items;
-            };
-
-            const data = {
+        // Сбор данных из формы
+        function getFormData() {
+            const collect = (id) => Array.from(document.getElementById(id).querySelectorAll('.stage')).map(s => ({
+                description: s.querySelector('.s-desc').value,
+                duration_raw: s.querySelector('.s-dur').value,
+                comment: s.querySelector('.s-comm').value
+            }));
+            return {
                 release_number: document.getElementById('release_number').value,
                 start_date_time: document.getElementById('start_date_time').value,
                 as_system: document.getElementById('as_system').value,
@@ -261,9 +261,13 @@
                 contacts: document.getElementById('contacts').value,
                 description: document.getElementById('description').value,
                 possible_downtime: document.getElementById('possible_downtime').value,
-                stages: collectStages('stages_list'),
-                rollback_stages: collectStages('rollback_list')
+                stages: collect('stages_list'),
+                rollback_stages: collect('rollback_list')
             };
+        }
+
+        async function generateDocx() {
+            const data = getFormData();
 
             if (!data.release_number || !data.start_date_time || data.stages.length === 0) {
                 alert("Заполните обязательные поля и добавьте хотя бы один этап");
@@ -324,6 +328,43 @@
                 alert("Ошибка: " + e.message);
             } finally {
                 await loadHistory(); // Обновляем историю после успешной генерации
+            }
+        }
+
+        async function generateEmailOnly() {
+            const data = getFormData();
+            if (!data.release_number) return alert("Введите номер релиза");
+
+            try {
+                const response = await fetch('/generate-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) throw new Error(await response.text());
+
+                const blob = await response.blob();
+                let filename = "email.eml";
+                const disposition = response.headers.get('Content-Disposition');
+                if (disposition && disposition.includes("filename*=utf-8''")) {
+                    filename = decodeURIComponent(disposition.split("filename*=utf-8''")[1]);
+                }
+
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                }, 5000);
+
+            } catch (e) {
+                alert("Ошибка при генерации письма: " + e.message);
             }
         }
 

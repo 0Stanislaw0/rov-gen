@@ -10,10 +10,14 @@ system_metadata:
       approver_title: "Начальник отдела эксплуатации"
       owner_name: "Петров Петр Петрович"
       owner_contacts: "petrov@example.com, +7 (999) 000-00-00"
+      email_to: ["recipient@example.com"]
+      email_recipients: ["cc-recipient@example.com"]
       block_val: "Блок автоматизации"
     FP2:
       approver_name: "Сидоров Сидор Сидорович"
       approver_title: "Директор департамента"
       owner_name: "Васильев Василий"
       owner_contacts: "vas@example.com"
+      email_to: ["another-recipient@example.com"]
+      email_recipients: []
       block_val: "Цифровой блок"
