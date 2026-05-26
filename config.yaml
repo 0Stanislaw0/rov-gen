@@ -1,0 +1,19 @@
+release_placeholder: "Например release-2026-05"
+
+fp_mapping:
+  AS1: ["FP1", "FP2"]
+
+system_metadata:
+  AS1:
+    FP1:
+      approver_name: "Иванов Иван Иванович"
+      approver_title: "Начальник отдела эксплуатации"
+      owner_name: "Петров Петр Петрович"
+      owner_contacts: "petrov@example.com, +7 (999) 000-00-00"
+      block_val: "Блок автоматизации"
+    FP2:
+      approver_name: "Сидоров Сидор Сидорович"
+      approver_title: "Директор департамента"
+      owner_name: "Васильев Василий"
+      owner_contacts: "vas@example.com"
+      block_val: "Цифровой блок"
