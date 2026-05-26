@@ -4,61 +4,89 @@
     <meta charset="UTF-8">
     <title>Генератор РОВ</title>
     <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
+        body { font-family: sans-serif; margin: 0; padding: 20px; background-color: #f4f7f9; }
+        .app-container { display: grid; grid-template-columns: 320px 1fr 320px; gap: 30px; align-items: flex-start; max-width: 1600px; margin: 0 auto; }
+        .sidebar { position: sticky; top: 20px; max-height: 90vh; overflow-y: auto; }
+        .main-content { min-width: 600px; max-width: 800px; justify-self: center; width: 100%; }
+        .right-spacer { width: 320px; } /* Пустая колонка для центровки */
+        
         .section { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
         .stage { background: #f9f9f9; padding: 10px; margin-bottom: 10px; border-left: 4px solid #007bff; }
+        .history-item { background: #e9ecef; padding: 10px; margin-bottom: 8px; border-radius: 4px; display: flex; flex-direction: column; }
+        .history-item-info { margin-bottom: 5px; }
+        .history-item-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+        .history-item-actions button { padding: 5px 10px; font-size: 0.85em; }
         label { display: block; margin-top: 10px; font-weight: bold; }
+        .label-inline { display: inline-block; margin-right: 10px; }
+        .label-inline input { width: auto; display: inline-block; }
+        .label-inline select { width: auto; display: inline-block; }
+
         input, select, textarea { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
         button { margin-top: 10px; padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 3px; }
         .error { border-color: red; }
         .error-msg { color: red; font-size: 0.9em; }
+        h1, h2 { color: #333; }
     </style>
 </head>
 <body>
-    <h1>Генерация РОВ</h1>
-    
-    <div class="section">
-        <label>№ релиза</label>
-        <input type="text" id="release_number" required>
-        
-        <label>Дата и время начала (дд.мм.гг ЧЧ:ММ)</label>
-        <input type="text" id="start_date_time" placeholder="18.05.26 23:00">
+    <div class="app-container">
+        <aside class="sidebar">
+            <h2>История</h2>
+            <div class="section" id="history_section">
+                <div id="history_list">Загрузка истории...</div>
+            </div>
+        </aside>
 
-        <label>АС</label>
-        <select id="as_system" onchange="updateFP()"></select>
+        <main class="main-content">
+            <h1>Генерация РОВ</h1>
+            
+            <div class="section">
+                <label>№ релиза</label>
+                <input type="text" id="release_number" required>
+                
+                <label>Дата и время начала (дд.мм.гг ЧЧ:ММ)</label>
+                <input type="text" id="start_date_time" placeholder="18.05.26 23:00">
 
-        <label>ФП</label>
-        <select id="fp_system"></select>
+                <label>АС</label>
+                <select id="as_system" onchange="updateFP()"></select>
+
+                <label>ФП</label>
+                <select id="fp_system"></select>
+            </div>
+
+            <div class="section">
+                <label>Ответственный</label>
+                <input type="text" id="responsible" value="Иванов И.И.">
+                <label>Контакты</label>
+                <input type="text" id="contacts" value="+7-999-000-00-00">
+                <label>Описание</label>
+                <textarea id="description">Плановые работы</textarea>
+                <label>Возможная недоступность</label>
+                <textarea id="possible_downtime">Обновление системы</textarea>
+            </div>
+
+            <div class="section">
+                <h3>План работ</h3>
+                <div id="stages_list"></div>
+                <button type="button" onclick="addStage('stages_list')">+ Добавить этап работы</button>
+            </div>
+
+            <div class="section">
+                <h3>План отката</h3>
+                <div id="rollback_list"></div>
+                <button type="button" onclick="addStage('rollback_list')">+ Добавить этап отката</button>
+            </div>
+
+            <button onclick="generateDocx()" style="background: green; width: 100%; font-size: 1.2em; margin-bottom: 50px;">Сгенерировать DOCX</button>
+        </main>
+
+        <div class="right-spacer"></div>
     </div>
-
-    <div class="section">
-        <label>Ответственный</label>
-        <input type="text" id="responsible" value="Иванов И.И.">
-        <label>Контакты</label>
-        <input type="text" id="contacts" value="+7-999-000-00-00">
-        <label>Описание</label>
-        <textarea id="description">Плановые работы</textarea>
-        <label>Возможная недоступность</label>
-        <textarea id="possible_downtime">Обновление системы</textarea>
-    </div>
-
-    <div class="section">
-        <h3>План работ</h3>
-        <div id="stages_list"></div>
-        <button type="button" onclick="addStage('stages_list')">+ Добавить этап работы</button>
-    </div>
-
-    <div class="section">
-        <h3>План отката</h3>
-        <div id="rollback_list"></div>
-        <button type="button" onclick="addStage('rollback_list')">+ Добавить этап отката</button>
-    </div>
-
-    <button onclick="generateDocx()" style="background: green; width: 100%; font-size: 1.2em;">Сгенерировать DOCX</button>
 
     <script>
         let config = {};
 
+        // Загрузка конфигурации с сервера
         async function loadConfig() {
             try {
                 const res = await fetch('/config');
@@ -75,10 +103,12 @@
                     asSelect.appendChild(opt);
                 });
                 updateFP();
+                await loadHistory(); // Загружаем историю после загрузки конфига
             } catch (e) {
                 console.error("Ошибка загрузки конфига:", e);
             }
         }
+        
 
         function updateFP() {
             const asVal = document.getElementById('as_system').value;
@@ -92,19 +122,121 @@
             });
         }
 
-        function addStage(containerId) {
+        // Добавление нового этапа (работы или отката)
+        function addStage(containerId, stageData = { description: '', duration_raw: '', comment: '' }) {
             const div = document.createElement('div');
             div.className = 'stage';
             div.innerHTML = `
                 <label>Описание работ</label>
-                <input type="text" class="s-desc" required>
+                <input type="text" class="s-desc" value="${stageData.description}" required>
                 <label>Длительность (например: 1 час, 30 мин)</label>
-                <input type="text" class="s-dur" placeholder="60 мин" required>
+                <input type="text" class="s-dur" value="${stageData.duration_raw}" placeholder="60 мин" required>
                 <label>Комментарий</label>
-                <input type="text" class="s-comm">
+                <input type="text" class="s-comm" value="${stageData.comment}">
                 <button onclick="this.parentElement.remove()" style="background:red">Удалить</button>
             `;
             document.getElementById(containerId).appendChild(div);
+        }
+
+        // Очистка списка этапов
+        function clearStages(containerId) {
+            document.getElementById(containerId).innerHTML = '';
+        }
+
+        // Загрузка истории генераций
+        async function loadHistory() {
+            const historyListDiv = document.getElementById('history_list');
+            historyListDiv.innerHTML = 'Загрузка истории...';
+            try {
+                const response = await fetch('/history');
+                if (!response.ok) throw new Error("Не удалось загрузить историю");
+                const history = await response.json();
+
+                historyListDiv.innerHTML = ''; // Очищаем "Загрузка истории..."
+                if (history.length === 0) {
+                    historyListDiv.innerHTML = 'История пуста.';
+                    return;
+                }
+
+                history.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'history-item';
+                    const timestamp = new Date(item.timestamp).toLocaleString('ru-RU');
+                    itemDiv.innerHTML = `
+                        <div class="history-item-info">
+                            <strong>${item.release_number}</strong> (${item.as_system} / ${item.fp_system})<br>
+                            <small>${timestamp}</small>
+                        </div>
+                        <div class="history-item-actions">
+                            <button onclick="downloadHistoryItem('${item.disk_filename}', '${encodeURIComponent(item.generated_filename)}')">Скачать</button>
+                            <button onclick="loadHistoryItemToForm('${item.id}')">Загрузить в форму</button>
+                            <button onclick="deleteHistoryItem('${item.id}')" style="background: #dc3545;">Удалить</button>
+                        </div>
+                    `;
+                    historyListDiv.appendChild(itemDiv);
+                });
+
+            } catch (e) {
+                console.error("Ошибка загрузки истории:", e);
+                historyListDiv.innerHTML = `Ошибка загрузки истории: ${e.message}`;
+            }
+        }
+
+        // Удаление записи
+        async function deleteHistoryItem(itemId) {
+            if (!confirm("Вы уверены, что хотите удалить эту запись и файл с сервера?")) return;
+            try {
+                const response = await fetch(`/history/${itemId}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error("Ошибка при удалении");
+                
+                // Перезагружаем список
+                await loadHistory();
+            } catch (e) {
+                alert("Не удалось удалить: " + e.message);
+            }
+        }
+
+        // Скачивание файла из истории
+        function downloadHistoryItem(diskFilename, encodedGeneratedFilename) {
+            const url = `/download/${diskFilename}?pretty_name=${encodedGeneratedFilename}`;
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = decodeURIComponent(encodedGeneratedFilename); // Имя файла для сохранения
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+
+        // Загрузка данных из истории в форму
+        async function loadHistoryItemToForm(itemId) {
+            try {
+                const response = await fetch(`/history/${itemId}`);
+                if (!response.ok) throw new Error("Не удалось загрузить данные истории");
+                const data = await response.json();
+
+                // Заполняем основные поля
+                document.getElementById('release_number').value = data.release_number;
+                document.getElementById('start_date_time').value = data.start_date_time;
+                document.getElementById('responsible').value = data.responsible;
+                document.getElementById('contacts').value = data.contacts;
+                document.getElementById('description').value = data.description;
+                document.getElementById('possible_downtime').value = data.possible_downtime;
+
+                // Заполняем АС и ФП
+                document.getElementById('as_system').value = data.as_system;
+                updateFP(); // Обновляем список ФП на основе выбранной АС
+                document.getElementById('fp_system').value = data.fp_system;
+
+                // Заполняем этапы работ
+                clearStages('stages_list');
+                data.stages.forEach(stage => addStage('stages_list', stage));
+                clearStages('rollback_list');
+                data.rollback_stages.forEach(stage => addStage('rollback_list', stage));
+
+            } catch (e) {
+                alert("Ошибка загрузки данных в форму: " + e.message);
+            }
         }
 
         async function generateDocx() {
@@ -182,6 +314,7 @@
                 a.click();
                 
                 // Освобождаем память через 10 секунд
+                // Теперь это не так критично, так как файл остается на сервере, но хорошая практика
                 setTimeout(() => {
                     window.URL.revokeObjectURL(url);
                     a.remove();
@@ -189,6 +322,8 @@
 
             } catch (e) {
                 alert("Ошибка: " + e.message);
+            } finally {
+                await loadHistory(); // Обновляем историю после успешной генерации
             }
         }
 

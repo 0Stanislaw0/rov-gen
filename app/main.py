@@ -3,12 +3,14 @@ import re
 import urllib.parse
 import traceback
 import uuid
+import json
 from datetime import datetime, timedelta 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import List
+from starlette.background import BackgroundTask # Оставляем импорт, но убираем использование в /generate
+from typing import List, Optional
 from pathlib import Path
 
 from .docx_gen import generate_docx
@@ -38,6 +40,51 @@ class ReleaseData(BaseModel):
     possible_downtime: str
     stages: List[Stage]
     rollback_stages: List[Stage]
+
+# Определяем путь к файлу истории
+HISTORY_FILE = BASE_DIR / "history.json"
+
+# Новая Pydantic модель для элемента истории
+class HistoryItem(BaseModel):
+    id: str
+    timestamp: datetime
+    release_data: ReleaseData # Полные данные, использованные для генерации
+    generated_filename: str # Имя файла, которое видит пользователь (например, "РОВ_АС_ФП_Релиз.docx")
+    disk_filename: str # Уникальное имя файла на диске (например, "a1b2c3d4e5f6.docx")
+
+# Вспомогательные функции для работы с историей
+def load_history() -> List[HistoryItem]:
+    """Загружает историю из JSON файла."""
+    if not HISTORY_FILE.exists():
+        return []
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            raw_history = json.load(f)
+            # Преобразуем сырые словари в Pydantic модели HistoryItem
+            return [HistoryItem(**item) for item in raw_history]
+    except json.JSONDecodeError:
+        print(f"WARNING: History file {HISTORY_FILE} is corrupted or empty. Starting with empty history.")
+        return []
+
+def save_history(history_data: List[HistoryItem]):
+    """Сохраняет историю в JSON файл."""
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        # Преобразуем Pydantic модели в словари для JSON сериализации
+        json.dump([item.dict() for item in history_data], f, ensure_ascii=False, indent=4, default=str)
+
+def add_to_history(release_data: ReleaseData, generated_filename: str, disk_filename: str):
+    """Добавляет новую запись в историю."""
+    history = load_history()
+    new_item = HistoryItem(
+        id=str(uuid.uuid4()),
+        timestamp=datetime.now(),
+        release_data=release_data,
+        generated_filename=generated_filename,
+        disk_filename=disk_filename
+    )
+    history.insert(0, new_item) # Добавляем в начало для хронологического порядка
+    save_history(history)
+    return new_item.id
 
 def parse_duration(raw: str) -> int:
     """Converts '1 hour', '60 min' etc to minutes."""
@@ -69,6 +116,57 @@ def get_config():
     if "as_list" not in res_config and "fp_mapping" in res_config:
         res_config["as_list"] = list(res_config["fp_mapping"].keys())
     return res_config
+
+# Новый эндпоинт для получения списка истории
+@app.get("/history")
+def get_history_list():
+    history = load_history()
+    # Возвращаем упрощенный вид для списка, чтобы не передавать все данные формы
+    return [
+        {
+            "id": item.id,
+            "timestamp": item.timestamp.isoformat(),
+            "release_number": item.release_data.release_number,
+            "as_system": item.release_data.as_system,
+            "fp_system": item.release_data.fp_system,
+            "generated_filename": item.generated_filename,
+            "disk_filename": item.disk_filename # Нужно для ссылки на скачивание
+        }
+        for item in history
+    ]
+
+# Новый эндпоинт для получения полных данных конкретной записи истории
+@app.get("/history/{item_id}")
+def get_history_item_data(item_id: str):
+    history = load_history()
+    for item in history:
+        if item.id == item_id:
+            return item.release_data # Возвращаем полные данные ReleaseData для предзаполнения формы
+    raise HTTPException(status_code=404, detail="Запись истории не найдена")
+
+@app.delete("/history/{item_id}")
+def delete_history_item(item_id: str):
+    history = load_history()
+    item_to_delete = None
+    
+    # Ищем элемент
+    for item in history:
+        if item.id == item_id:
+            item_to_delete = item
+            break
+    
+    if not item_to_delete:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+
+    # Удаляем файл с диска
+    file_path = BASE_DIR / item_to_delete.disk_filename
+    if file_path.exists():
+        file_path.unlink()
+
+    # Сохраняем историю без этого элемента
+    new_history = [i for i in history if i.id != item_id]
+    save_history(new_history)
+    return {"status": "success", "message": f"Запись {item_id} и файл удалены"}
 
 @app.post("/generate")
 def generate_report(data: ReleaseData):
@@ -206,6 +304,9 @@ def generate_report(data: ReleaseData):
             raise ValueError("Сгенерированный файл пуст или не существует. Возможно, ошибка в процессе генерации DOCX.")
         
         print(f"DEBUG: Сгенерирован файл {file_path}, размер: {file_path.stat().st_size} байт")
+
+        # Сохраняем успешную генерацию в историю
+        add_to_history(data, clean_filename, unique_disk_name)
 
         # Кодируем имя файла для безопасной передачи кириллицы
         encoded_name = urllib.parse.quote(clean_filename)

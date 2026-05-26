@@ -9,6 +9,9 @@ venv/
 *.docx
 !templates/template.docx
 
+# History
+history.json
+
 # IDE
 .vscode/
 .idea/
