@@ -4,28 +4,43 @@
     <meta charset="UTF-8">
     <title>Генератор РОВ</title>
     <style>
-        body { font-family: sans-serif; margin: 0; padding: 20px; background-color: #f4f7f9; }
+        body { 
+            font-family: 'SBSansText', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f2f2f2; 
+            color: #333;
+        }
         .app-container { display: grid; grid-template-columns: 320px 1fr 320px; gap: 30px; align-items: flex-start; max-width: 1600px; margin: 0 auto; }
         .sidebar { position: sticky; top: 20px; max-height: 90vh; overflow-y: auto; }
         .main-content { min-width: 600px; max-width: 800px; justify-self: center; width: 100%; }
         .right-spacer { width: 320px; } /* Пустая колонка для центровки */
         
-        .section { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
-        .stage { background: #f9f9f9; padding: 10px; margin-bottom: 10px; border-left: 4px solid #007bff; }
-        .history-item { background: #e9ecef; padding: 10px; margin-bottom: 8px; border-radius: 4px; display: flex; flex-direction: column; }
+        .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid transparent; }
+        .section-work { border-top-color: #21a038; }
+        .section-rollback { border-top-color: #0070ef; }
+        
+        .stage { background: #fdfdfd; padding: 15px; margin-bottom: 15px; border-left: 4px solid #21a038; border-radius: 4px; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee; }
+        .stage.rollback-theme { border-left-color: #0070ef; }
+        
+        .history-item { background: #f8f9fa; padding: 12px; margin-bottom: 10px; border-radius: 6px; display: flex; flex-direction: column; border: 1px solid #e0e0e0; }
         .history-item-info { margin-bottom: 5px; }
         .history-item-actions { display: flex; gap: 5px; flex-wrap: wrap; }
         .history-item-actions button { padding: 5px 10px; font-size: 0.85em; }
-        label { display: block; margin-top: 10px; font-weight: bold; }
+        label { display: block; margin-top: 12px; font-weight: 600; font-size: 0.9em; color: #555; }
         .label-inline { display: inline-block; margin-right: 10px; }
         .label-inline input { width: auto; display: inline-block; }
         .label-inline select { width: auto; display: inline-block; }
 
-        input, select, textarea { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
-        button { margin-top: 10px; padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 3px; }
+        input, select, textarea { width: 100%; padding: 10px; margin-top: 5px; box-sizing: border-box; border: 1px solid #d1d1d1; border-radius: 6px; font-size: 1em; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #21a038; box-shadow: 0 0 0 2px rgba(33, 160, 56, 0.2); }
+        
+        button { margin-top: 10px; padding: 10px 20px; cursor: pointer; background: #21a038; color: white; border: none; border-radius: 6px; font-weight: 600; transition: background 0.2s; }
+        button:hover { background: #1e8d31; }
+        
         .error { border-color: red; }
         .error-msg { color: red; font-size: 0.9em; }
-        h1, h2 { color: #333; }
+        h1, h2, h3 { color: #000; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -65,20 +80,20 @@
                 <textarea id="possible_downtime">Обновление системы</textarea>
             </div>
 
-            <div class="section">
-                <h3>План работ</h3>
+            <div class="section section-work">
+                <h3 style="color: #21a038;">План работ</h3>
                 <div id="stages_list"></div>
                 <button type="button" onclick="addStage('stages_list')">+ Добавить этап работы</button>
             </div>
 
-            <div class="section">
-                <h3>План отката</h3>
+            <div class="section section-rollback">
+                <h3 style="color: #0070ef;">План отката</h3>
                 <div id="rollback_list"></div>
-                <button type="button" onclick="addStage('rollback_list')">+ Добавить этап отката</button>
+                <button type="button" onclick="addStage('rollback_list')" style="background: #0070ef;">+ Добавить этап отката</button>
             </div>
 
             <button onclick="generateDocx()" style="background: #28a745; width: 100%; font-size: 1.2em; margin-bottom: 10px;">Сгенерировать DOCX + Письмо</button>
-            <button onclick="generateEmailOnly()" style="background: #17a2b8; width: 100%; font-size: 1.1em; margin-bottom: 50px;">Только Письмо (без сохранения)</button>
+            <button onclick="generateEmailOnly()" style="background: #0070ef; width: 100%; font-size: 1.1em; margin-bottom: 50px;">Только Письмо (без сохранения)</button>
         </main>
 
         <div class="right-spacer"></div>
@@ -124,19 +139,32 @@
         }
 
         // Добавление нового этапа (работы или отката)
-        function addStage(containerId, stageData = { description: '', duration_raw: '', comment: '' }) {
+        function addStage(containerId, stageData = { description: '', duration_raw: '', comment: '' }, beforeElement = null) {
+            const isRollback = containerId === 'rollback_list';
+            const accentColor = isRollback ? '#0070ef' : '#21a038';
+            const btnBg = isRollback ? '#f0f7ff' : '#e8f5e9';
+            const themeClass = isRollback ? 'rollback-theme' : '';
+
             const div = document.createElement('div');
-            div.className = 'stage';
+            div.className = `stage ${themeClass}`;
             div.innerHTML = `
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                    <button type="button" onclick="addStage('${containerId}', undefined, this.closest('.stage'))" style="margin: 0; padding: 4px 12px; background: ${btnBg}; color: ${accentColor}; font-size: 0.85em; width: auto; border: 1px solid ${accentColor};">+ вставить выше</button>
+                </div>
                 <label>Описание работ</label>
                 <input type="text" class="s-desc" value="${stageData.description}" required>
                 <label>Длительность (например: 1 час, 30 мин)</label>
                 <input type="text" class="s-dur" value="${stageData.duration_raw}" placeholder="60 мин" required>
                 <label>Комментарий</label>
                 <input type="text" class="s-comm" value="${stageData.comment}">
-                <button onclick="this.parentElement.remove()" style="background:red">Удалить</button>
+                <button type="button" onclick="this.closest('.stage').remove()" style="background:#fce8e8; color: #eb5757; border: 1px solid #eb5757; width: 100%;">Удалить этап</button>
             `;
-            document.getElementById(containerId).appendChild(div);
+            const container = document.getElementById(containerId);
+            if (beforeElement) {
+                container.insertBefore(div, beforeElement);
+            } else {
+                container.appendChild(div);
+            }
         }
 
         // Очистка списка этапов

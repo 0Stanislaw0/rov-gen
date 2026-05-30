@@ -1,11 +1,11 @@
 release_placeholder: "Например release-2026-05"
 
 fp_mapping:
-  AS1: ["FP1", "FP2"]
+  ЕФС Сотрудники Smartcare: ["Smartcare", "Gateway","Config-Servis"]
 
 system_metadata:
-  AS1:
-    FP1:
+  ЕФС Сотрудники Smartcare:
+    Smartcare:
       approver_name: "Иванов Иван Иванович"
       approver_title: "Начальник отдела эксплуатации"
       owner_name: "Петров Петр Петрович"
@@ -13,7 +13,7 @@ system_metadata:
       email_to: ["recipient@example.com"]
       email_recipients: ["cc-recipient@example.com"]
       block_val: "Блок автоматизации"
-    FP2:
+    Gateway:
       approver_name: "Сидоров Сидор Сидорович"
       approver_title: "Директор департамента"
       owner_name: "Васильев Василий"
