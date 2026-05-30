@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Генератор РОВ</title>
+    <title>Генератор плана</title>
     <style>
         body { 
             font-family: 'SBSansText', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
@@ -34,6 +34,7 @@
 
         input, select, textarea { width: 100%; padding: 10px; margin-top: 5px; box-sizing: border-box; border: 1px solid #d1d1d1; border-radius: 6px; font-size: 1em; }
         input:focus, select:focus, textarea:focus { outline: none; border-color: #21a038; box-shadow: 0 0 0 2px rgba(33, 160, 56, 0.2); }
+        textarea { resize: vertical; min-height: 40px; }
         
         button { margin-top: 10px; padding: 10px 20px; cursor: pointer; background: #21a038; color: white; border: none; border-radius: 6px; font-weight: 600; transition: background 0.2s; }
         button:hover { background: #1e8d31; }
@@ -53,7 +54,7 @@
         </aside>
 
         <main class="main-content">
-            <h1>Генерация РОВ</h1>
+            <h1>Генерация плана</h1>
             
             <div class="section">
                 <label>№ релиза</label>
@@ -63,7 +64,7 @@
                 <input type="text" id="start_date_time" placeholder="18.05.26 23:00">
 
                 <label>АС</label>
-                <select id="as_system" onchange="updateFP()"></select>
+                <select id="as_system" onchange="updateFP(); updateDefaultTime();"></select>
 
                 <label>ФП</label>
                 <select id="fp_system"></select>
@@ -73,7 +74,7 @@
                 <label>Ответственный</label>
                 <input type="text" id="responsible" value="Иванов И.И.">
                 <label>Контакты</label>
-                <input type="text" id="contacts" value="+7-999-000-00-00">
+                <input type="text" id="contacts" value="+7 (999) 000-00-00">
                 <label>Описание</label>
                 <textarea id="description">Плановые работы</textarea>
                 <label>Возможная недоступность</label>
@@ -96,7 +97,12 @@
             <button onclick="generateEmailOnly()" style="background: #0070ef; width: 100%; font-size: 1.1em; margin-bottom: 50px;">Только Письмо (без сохранения)</button>
         </main>
 
-        <div class="right-spacer"></div>
+        <aside class="sidebar">
+            <h2>Шаблоны</h2>
+            <div class="section" id="templates_section">
+                <div id="templates_list">Загрузка шаблонов...</div>
+            </div>
+        </aside>
     </div>
 
     <script>
@@ -110,6 +116,10 @@
                 
                 config = await res.json();
                 
+                // Установка дефолтов из конфига
+                document.getElementById('responsible').value = config.default_responsible || "Иванов И.И.";
+                document.getElementById('contacts').value = config.default_contacts || "+7-999-000-00-00";
+
                 document.getElementById('release_number').placeholder = config.release_placeholder || "";
                 const asSelect = document.getElementById('as_system');
                 asSelect.innerHTML = '';
@@ -118,8 +128,11 @@
                     opt.value = as; opt.textContent = as;
                     asSelect.appendChild(opt);
                 });
+
                 updateFP();
+                updateDefaultTime();
                 await loadHistory(); // Загружаем историю после загрузки конфига
+                await loadTemplates(); // Загружаем шаблоны
             } catch (e) {
                 console.error("Ошибка загрузки конфига:", e);
             }
@@ -138,6 +151,23 @@
             });
         }
 
+        function updateDefaultTime() {
+            const asVal = document.getElementById('as_system').value;
+            const startTimes = config.as_start_times || {};
+            const defaultTime = startTimes[asVal] || "23:00";
+            const timeField = document.getElementById('start_date_time');
+            
+            let datePart;
+            if (timeField.value && timeField.value.includes(' ')) {
+                datePart = timeField.value.split(' ')[0];
+            } else {
+                const now = new Date();
+                datePart = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getFullYear()).slice(-2)}`;
+            }
+            
+            timeField.value = `${datePart} ${defaultTime}`;
+        }
+
         // Добавление нового этапа (работы или отката)
         function addStage(containerId, stageData = { description: '', duration_raw: '', comment: '' }, beforeElement = null) {
             const isRollback = containerId === 'rollback_list';
@@ -152,11 +182,11 @@
                     <button type="button" onclick="addStage('${containerId}', undefined, this.closest('.stage'))" style="margin: 0; padding: 4px 12px; background: ${btnBg}; color: ${accentColor}; font-size: 0.85em; width: auto; border: 1px solid ${accentColor};">+ вставить выше</button>
                 </div>
                 <label>Описание работ</label>
-                <input type="text" class="s-desc" value="${stageData.description}" required>
+                <textarea class="s-desc" required>${stageData.description}</textarea>
                 <label>Длительность (например: 1 час, 30 мин)</label>
                 <input type="text" class="s-dur" value="${stageData.duration_raw}" placeholder="60 мин" required>
                 <label>Комментарий</label>
-                <input type="text" class="s-comm" value="${stageData.comment}">
+                <textarea class="s-comm">${stageData.comment}</textarea>
                 <button type="button" onclick="this.closest('.stage').remove()" style="background:#fce8e8; color: #eb5757; border: 1px solid #eb5757; width: 100%;">Удалить этап</button>
             `;
             const container = document.getElementById(containerId);
@@ -242,35 +272,78 @@
             a.remove();
         }
 
+        // Универсальная функция заполнения формы данными
+        function fillForm(data) {
+            document.getElementById('release_number').value = data.release_number || '';
+            
+            // Установка АС и ФП (важен порядок для синхронизации зависимых списков)
+            document.getElementById('as_system').value = data.as_system || '';
+            updateFP();
+            document.getElementById('fp_system').value = data.fp_system || '';
+
+            // Если в данных есть дата (история), ставим её. Если нет (шаблон), ставим дефолт для АС.
+            if (data.start_date_time) {
+                document.getElementById('start_date_time').value = data.start_date_time;
+            } else {
+                updateDefaultTime();
+            }
+
+            document.getElementById('responsible').value = data.responsible || config.default_responsible || '';
+            document.getElementById('contacts').value = data.contacts || config.default_contacts || '';
+            document.getElementById('description').value = data.description || 'Плановые работы';
+            document.getElementById('possible_downtime').value = data.possible_downtime || '';
+
+            clearStages('stages_list');
+            (data.stages || []).forEach(stage => addStage('stages_list', stage));
+            clearStages('rollback_list');
+            (data.rollback_stages || []).forEach(stage => addStage('rollback_list', stage));
+        }
+
         // Загрузка данных из истории в форму
         async function loadHistoryItemToForm(itemId) {
             try {
                 const response = await fetch(`/history/${itemId}`);
                 if (!response.ok) throw new Error("Не удалось загрузить данные истории");
                 const data = await response.json();
-
-                // Заполняем основные поля
-                document.getElementById('release_number').value = data.release_number;
-                document.getElementById('start_date_time').value = data.start_date_time;
-                document.getElementById('responsible').value = data.responsible;
-                document.getElementById('contacts').value = data.contacts;
-                document.getElementById('description').value = data.description;
-                document.getElementById('possible_downtime').value = data.possible_downtime;
-
-                // Заполняем АС и ФП
-                document.getElementById('as_system').value = data.as_system;
-                updateFP(); // Обновляем список ФП на основе выбранной АС
-                document.getElementById('fp_system').value = data.fp_system;
-
-                // Заполняем этапы работ
-                clearStages('stages_list');
-                data.stages.forEach(stage => addStage('stages_list', stage));
-                clearStages('rollback_list');
-                data.rollback_stages.forEach(stage => addStage('rollback_list', stage));
-
+                fillForm(data);
             } catch (e) {
                 alert("Ошибка загрузки данных в форму: " + e.message);
             }
+        }
+
+        let templatesData = [];
+        async function loadTemplates() {
+            const listDiv = document.getElementById('templates_list');
+            listDiv.innerHTML = 'Загрузка...';
+            try {
+                const res = await fetch('/templates');
+                templatesData = await res.json();
+                listDiv.innerHTML = '';
+                if (!templatesData.length) {
+                    listDiv.innerHTML = '<small>Шаблоны не настроены в templates.json</small>';
+                    return;
+                }
+                templatesData.forEach(t => {
+                    const div = document.createElement('div');
+                    div.className = 'history-item';
+                    div.innerHTML = `
+                        <div class="history-item-info">
+                            <strong>${t.name}</strong><br><small>${t.as_system} / ${t.fp_system}</small>
+                        </div>
+                        <div class="history-item-actions">
+                            <button onclick="applyTemplate('${t.id}')">Загрузить в форму</button>
+                        </div>
+                    `;
+                    listDiv.appendChild(div);
+                });
+            } catch (e) {
+                listDiv.innerHTML = 'Ошибка загрузки шаблонов';
+            }
+        }
+
+        function applyTemplate(id) {
+            const t = templatesData.find(x => x.id === id);
+            if (t) fillForm(t.release_data);
         }
 
         // Сбор данных из формы

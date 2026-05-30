@@ -1,0 +1,33 @@
+[
+    {
+        "id": "tmpl_sys1_std",
+        "name": "План: Smartcare",
+        "as_system": "ЕФС Сотрудники Smartcare",
+        "fp_system": "Config-Service",
+        "release_data": {
+            "as_system": "ЕФС Сотрудники Smartcare",
+            "fp_system": "Config-Service",
+            "description": "Плановое обновление программного обеспечения",
+            "possible_downtime": "Кратковременные прерывания сервиса до 5 минут",
+            "stages": [
+                {
+                    "description": "Подготовительные мероприятия, проверка бэкапов",
+                    "duration_raw": "15 мин",
+                    "comment": ""
+                },
+                {
+                    "description": "Применение инкрементального обновления",
+                    "duration_raw": "30 мин",
+                    "comment": "Запуск скрипта deploy.sh"
+                }
+            ],
+            "rollback_stages": [
+                {
+                    "description": "Откат к предыдущей стабильной версии",
+                    "duration_raw": "20 мин",
+                    "comment": ""
+                }
+            ]
+        }
+    }
+]

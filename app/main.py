@@ -45,6 +45,7 @@ class ReleaseData(BaseModel):
 
 # Определяем путь к файлу истории
 HISTORY_FILE = BASE_DIR / "history.json"
+TEMPLATES_FILE = BASE_DIR / "templates.json"
 
 # Новая Pydantic модель для элемента истории
 class HistoryItem(BaseModel):
@@ -121,6 +122,10 @@ def get_config():
     # Если в конфиге нет явного списка систем, берем ключи из fp_mapping
     if "as_list" not in res_config and "fp_mapping" in res_config:
         res_config["as_list"] = list(res_config["fp_mapping"].keys())
+    # Добавляем глобальные дефолты для пользователя
+    res_config.setdefault("default_responsible", "Иванов И.И.")
+    res_config.setdefault("default_contacts", "+7-999-000-00-00")
+    res_config.setdefault("as_start_times", {})
     return res_config
 
 # Новый эндпоинт для получения списка истории
@@ -151,6 +156,25 @@ def get_history_item_data(item_id: str):
         if item.id == item_id:
             return item.release_data # Возвращаем полные данные ReleaseData для предзаполнения формы
     raise HTTPException(status_code=404, detail="Запись истории не найдена")
+
+@app.get("/templates")
+def get_templates():
+    """Загружает список шаблонов из файла templates.json."""
+    if not TEMPLATES_FILE.exists():
+        return []
+    try:
+        with open(TEMPLATES_FILE, "r", encoding="utf-8") as f:
+            templates = json.load(f)
+        
+        # Фильтруем шаблоны: показываем только те, что соответствуют текущему конфигу АС/ФП
+        valid_mapping = CONFIG.get("fp_mapping", {})
+        return [
+            t for t in templates 
+            if t.get("as_system") in valid_mapping 
+            and t.get("fp_system") in valid_mapping[t.get("as_system")]
+        ]
+    except Exception:
+        return []
 
 @app.delete("/history/{item_id}")
 def delete_history_item(item_id: str):
@@ -268,7 +292,7 @@ def prepare_release_context(data: ReleaseData):
 def get_safe_filenames(data: ReleaseData):
     safe_fp = re.sub(r'[\\/*?:"<>|]', "_", data.fp_system)
     safe_release = re.sub(r'[\\/*?:"<>|]', "_", data.release_number)
-    base_name = f"РОВ_{safe_fp}_{safe_release}"
+    base_name = f"План_{safe_fp}_{safe_release}"
     return (
         f"{base_name}.docx", 
         f"{uuid.uuid4().hex}.docx",
@@ -289,8 +313,8 @@ def create_eml_content(data: ReleaseData, system_meta: dict):
     if isinstance(cc_list, str): cc_list = [cc_list]
 
     msg = EmailMessage()
-    msg.set_content(f"Коллеги, добрый день!\n\nСформировано РОВ для {data.fp_system}.\n\nСгенерировано автоматически.")
-    msg['Subject'] = f"РОВ: {data.as_system} / {data.fp_system} - Релиз {data.release_number}"
+    msg.set_content(f"Коллеги, добрый день!\n\nСформирован план работ для {data.fp_system}.\n\nСгенерировано автоматически.")
+    msg['Subject'] = f"План работ: {data.as_system} / {data.fp_system} - Релиз {data.release_number}"
     msg['From'] = f"{data.responsible} <no-reply@example.com>"
     msg['To'] = ", ".join(to_list)
     msg['Cc'] = ", ".join(cc_list)

@@ -1,7 +1,12 @@
-release_placeholder: "Например release-2026-05"
+release_placeholder: "Например SCDEV-1234"
+default_responsible: "Ковалев С.А."
+default_contacts: "+7 (999) 000-00-00"
+
+as_start_times:
+  "ЕФС Сотрудники Smartcare": "23:00"
 
 fp_mapping:
-  ЕФС Сотрудники Smartcare: ["Smartcare", "Gateway","Config-Servis"]
+  ЕФС Сотрудники Smartcare: ["Smartcare", "Gateway","Config-Service"]
 
 system_metadata:
   ЕФС Сотрудники Smartcare:
