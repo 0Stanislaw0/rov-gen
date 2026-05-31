@@ -9,11 +9,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from email.message import EmailMessage
+from email.policy import default
 from email.utils import formatdate
 from pydantic import BaseModel
 from starlette.background import BackgroundTask # Оставляем импорт, но убираем использование в /generate
 from typing import List, Optional
 from pathlib import Path
+from jinja2 import Template
 
 from .docx_gen import generate_docx
 from .config_loader import load_config
@@ -284,7 +286,7 @@ def prepare_release_context(data: ReleaseData):
         "APPROVER_TITLE": system_meta.get("approver_title", ""),
         "OWNER_NAME": system_meta.get("owner_name", ""),
         "OWNER_CONTACTS": system_meta.get("owner_contacts", ""),
-        "EMAIL_TO": ", ".join(system_meta.get("email_to") or []) if isinstance(system_meta.get("email_to"), list) else (system_meta.get("email_to") or ""),
+        "EMAIL_TO": (", ".join(system_meta.get("email_to")) if isinstance(system_meta.get("email_to"), list) else (system_meta.get("email_to") or "")),
         "BLOCK_VAL": system_meta.get("block_val", "")
     }
     return context, system_meta
@@ -305,20 +307,56 @@ def find_template():
     possible_paths = [BASE_DIR / "templates" / "template.docx", BASE_DIR / "app" / "templates" / "template.docx"]
     return next((p for p in possible_paths if p.exists()), None)
 
-def create_eml_content(data: ReleaseData, system_meta: dict):
+def create_eml_content(data: ReleaseData, system_meta: dict, context: dict):
     """Создает объект EmailMessage."""
     to_list = system_meta.get("email_to") or []
     if isinstance(to_list, str): to_list = [to_list]
     cc_list = system_meta.get("email_recipients") or []
     if isinstance(cc_list, str): cc_list = [cc_list]
 
-    msg = EmailMessage()
-    msg.set_content(f"Коллеги, добрый день!\n\nСформирован план работ для {data.fp_system}.\n\nСгенерировано автоматически.")
-    msg['Subject'] = f"План работ: {data.as_system} / {data.fp_system} - Релиз {data.release_number}"
+    # Путь к HTML шаблону (можно вынести в config.yaml)
+    email_tpl_path = BASE_DIR / "templates" / "email_template.html"
+    
+    if email_tpl_path.exists():
+        with open(email_tpl_path, "r", encoding="utf-8") as f:
+            template_str = f.read()
+    else:
+        # Фолбэк на простой текст, если файл не найден
+        template_str = "<html><body><p>План работ для {{ FP }}.</p></body></html>"
+    
+    html_content = Template(template_str).render(context)
+
+    # Используем большое значение вместо 0, чтобы избежать ValueError в Python 3.14
+    # и при этом предотвратить нежелательные разрывы строк и знаки "="
+    custom_policy = default.clone(max_line_length=1000000)
+    msg = EmailMessage(policy=custom_policy)
+    msg['Subject'] = f"Запланированные работы на: {data.as_system} / {data.fp_system} - {data.start_date_time}"
     msg['From'] = f"{data.responsible} <no-reply@example.com>"
     msg['To'] = ", ".join(to_list)
     msg['Cc'] = ", ".join(cc_list)
     msg['Date'] = formatdate(localtime=True)
+
+    # Основная текстовая часть (для клиентов, не умеющих в HTML)
+    msg.set_content(f"Запланированные работы на {data.as_system}.{data.fp_system} {data.start_date_time}")
+    # HTML часть
+    msg.add_alternative(html_content, subtype='html')
+    
+    # Находим созданную HTML-часть вручную для совместимости со всеми версиями Python
+    html_part = next((part for part in msg.iter_parts() if part.get_content_subtype() == 'html'), None)
+
+    # Логика вставки картинок (CID)
+    # Если в шаблоне есть <img src="cid:logo">, прикрепляем файл
+    static_img_path = BASE_DIR / "app" / "static" / "img" / "logo.jpg"
+    if html_part and static_img_path.exists() and 'cid:logo' in html_content:
+        with open(static_img_path, 'rb') as img:
+            # Для JPEG формат в MIME строго "jpeg"
+            html_part.add_related(
+                img.read(),
+                maintype="image",
+                subtype="jpeg",
+                cid='logo'
+            )
+    
     return msg
 
 @app.post("/generate")
@@ -337,7 +375,7 @@ def generate_report(data: ReleaseData):
         generate_docx(str(template_path), str(file_path), context)
         
         # Генерируем EML сразу
-        msg = create_eml_content(data, system_meta)
+        msg = create_eml_content(data, system_meta, context)
         with open(eml_path, 'wb') as f:
             f.write(msg.as_bytes())
 
@@ -356,10 +394,10 @@ def generate_report(data: ReleaseData):
 @app.post("/generate-email")
 def generate_email(data: ReleaseData):
     # Оставляем метод для прямой генерации, если нужно
-    _, system_meta = prepare_release_context(data)
+    context, system_meta = prepare_release_context(data)
     _, _, clean_eml, _ = get_safe_filenames(data)
 
-    msg = create_eml_content(data, system_meta)
+    msg = create_eml_content(data, system_meta, context)
     temp_eml = BASE_DIR / f"temp_{uuid.uuid4().hex}.eml"
     with open(temp_eml, 'wb') as f: f.write(msg.as_bytes())
     

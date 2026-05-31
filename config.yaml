@@ -26,3 +26,4 @@ system_metadata:
       email_to: ["another-recipient@example.com"]
       email_recipients: []
       block_val: "Цифровой блок"
+ 
