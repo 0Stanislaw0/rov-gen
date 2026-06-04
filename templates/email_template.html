@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Технические работы</title>
+    <style>
+        .ExternalClass, .ReadMsgBody {
+            width: 100%;
+            background-color: #f4f7fc;
+        }
+        body, table, td, p, a {
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+        table, td {
+            border-collapse: collapse;
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        img {
+            border: 0;
+            height: auto;
+            line-height: 100%;
+            outline: none;
+            text-decoration: none;
+            -ms-interpolation-mode: bicubic;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7fc;
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+        }
+        .yshortcuts a {
+            border-bottom: none !important;
+        }
+        @media only screen and (max-width: 600px) {
+            .responsive-table {
+                width: 100% !important;
+            }
+            .responsive-cell {
+                padding: 20px 15px !important;
+            }
+            .btn {
+                width: 100% !important;
+                display: block !important;
+                text-align: center !important;
+            }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7fc; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" align="center" bgcolor="#f4f7fc" style="background-color: #f4f7fc;">
+    <tr>
+        <td align="center" style="padding: 30px 20px;">
+
+            <table width="550" cellpadding="0" cellspacing="0" border="0" align="center" style="max-width: 550px; width: 100%; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);" bgcolor="#ffffff">
+                
+                <tr>
+                    <td align="center" bgcolor="#1E3A8A" style="background-color: #1E3A8A; padding: 32px 20px; border-radius: 12px 12px 0 0;">
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td align="center">
+                                    <div style="font-size: 48px; line-height: 1;">⚙️</div>
+                                    <h1 style="color: #ffffff; font-size: 26px; font-weight: 600; margin: 15px 0 0 0; padding: 0;">Технические работы</h1>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="responsive-cell" style="padding: 35px 30px;" bgcolor="#ffffff">
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td>
+                                    <h2 style="color: #1e293b; font-size: 20px; font-weight: 600; margin: 0 0 12px 0;">Коллеги!</h2>
+                                    <p style="color: #334155; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+                                       Сообщаю о проведении технических работ.
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+             
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F8FAFE" style="background-color: #F8FAFE; border-left: 4px solid #F97316; border-radius: 8px; margin: 20px 0;">
+                            <tr>
+                                <td style="padding: 20px;">
+                                    <p style="margin: 0 0 6px 0; font-size: 14px; color: #475569;">📅 <strong>Дата проведения и время:</strong></p>
+                                    <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: 600; color: #1E3A8A;">{{ WORK_TABLE[0].start_time }} — {{ WORK_TABLE[-1].end_time }}</p>
+                                    <p style="margin: 0 0 6px 0; font-size: 14px; color: #475569;">🔄 <strong>Описание :</strong></p>
+                                    <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: 600; color: #1E3A8A;">{{ DESCRIPTION }}</p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <!-- Что будет недоступно (пример) -->
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 25px 0;">
+                            <tr>
+                                <td>
+                                    <h3 style="color: #1e293b; font-size: 18px; margin: 0 0 10px 0;">Влияние внедрения:</h3>
+                                    <ul style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0; padding-left: 20px;">
+                                        <li style="margin-bottom: 8px;">{{ POSSIBLE_DOWNTIME }}</li>
+                                    </ul>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <!-- Блок для дополнительной информации от вас -->
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFF7ED" style="background-color: #FFF7ED; border-radius: 10px; margin: 25px 0 15px 0;">
+                            <tr>
+                                <td style="padding: 20px;">
+                                    <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #9A3412;">ℹ️ Важная дополнительная информация</p>
+                                    <p style="margin: 0; font-size: 14px; color: #7c2d12; line-height: 1.5;">
+                                        <p><strong>Точка принятия решения:</strong> {{ DP_START }}</p>
+                                        <p><strong>ТКС на время проведения работ: 11351#</p>
+                                        <p><strong>Ответственные за внедрение:</strong> {{ RESPONSIBLE }}</p>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <!-- Контактные данные -->
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 25px 0 10px 0;">
+                            <tr>
+                                <td align="center" style="border-top: 1px solid #e2e8f0; padding-top: 25px;">
+                                    <p style="color: #64748b; font-size: 14px; margin: 0 0 5px 0;">
+                                    </p>
+                                    <p style="margin: 0;">
+                                        <a href="mailto:support@yourcompany.com" style="color: #1E3A8A; font-weight: 500; text-decoration: underline;"></a>
+                                    </p>
+                                    <!-- Если нужен телефон -->
+                                    <!-- <p style="margin: 8px 0 0 0;"><a href="tel:+74950000000" style="color: #1E3A8A;">+7 (495) 000-00-00</a></p> -->
+                                </td>
+                            </tr>
+                        </table>
+                        <!-- ================================================== -->
+                        <!-- КОНЕЦ БЛОКА ДЛЯ ВАШЕЙ ИНФОРМАЦИИ -->
+                        
+                    </td>
+                </tr>
+                
+                <!-- Нижний колонтитул -->
+                <tr>
+                    <td align="center" bgcolor="#F1F5F9" style="background-color: #F1F5F9; padding: 20px 30px; border-radius: 0 0 12px 12px;">
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td align="center">
+                                    <p style="color: #64748b; font-size: 12px; margin: 0 0 8px 0;">
+                                      
+                                    </p>
+                                    <p style="color: #94a3b8; font-size: 11px; margin: 0; line-height: 1.4;">
+                                    </p>
+                                    <!-- Ссылка для отписки (опционально) -->
+                                    <p style="margin: 12px 0 0 0;">
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+            <!-- Конец основной таблицы письма -->
+            
+            <!-- Адаптивный spacer для Outlook -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+                <tr>
+                    <td height="20" style="height: 20px; line-height: 20px; font-size: 0;">&nbsp;</td>
+                </tr>
+            </table>
+            
+        </td>
+    </tr>
+</table>
+
+
+</body>
+</html>

@@ -1,0 +1,160 @@
+[
+    {
+        "id": "tmpl_sys1_std",
+        "name": "План: Smartcare",
+        "as_system": "ЕФС Сотрудники Smartcare",
+        "fp_system": "Config-Service",
+        "release_data": {
+            "as_system": "ЕФС Сотрудники Smartcare",
+            "fp_system": "Config-Service",
+            "docx_template": "template.docx",
+            "description": "Плановое обновление программного обеспечения",
+            "possible_downtime": "Кратковременные прерывания сервиса до 5 минут",
+            "stages": [
+                {
+                    "description": "Подготовительные мероприятия, проверка бэкапов",
+                    "duration_raw": "15 мин",
+                    "comment": ""
+                },
+                {
+                    "description": "Применение инкрементального обновления",
+                    "duration_raw": "30 мин",
+                    "comment": "Запуск скрипта deploy.sh"
+                }
+            ],
+            "rollback_stages": [
+                {
+                    "description": "Откат к предыдущей стабильной версии",
+                    "duration_raw": "20 мин",
+                    "comment": ""
+                }
+            ]
+        }
+        },
+        {
+            "id": "tmpl_sys1_hotfix",
+            "name": "Hotfix: Gateway (Срочно)",
+            "as_system": "ЕФС Сотрудники Smartcare",
+            "fp_system": "Gateway",
+            "release_data": {
+                "as_system": "ЕФС Сотрудники Smartcare",
+                "fp_system": "Gateway",
+                "docx_template": "hotfix_template.docx",
+                "description": "Срочное исправление критической ошибки авторизации",
+                "possible_downtime": "Нет (blue-green deploy)",
+                "stages": [
+                    {
+                        "description": "Переключение трафика на резервный узел",
+                        "duration_raw": "5 мин",
+                        "comment": ""
+                    },
+                    {
+                        "description": "Обновление основного узла и возврат трафика",
+                        "duration_raw": "10 мин",
+                        "comment": ""
+                    }
+                ],
+                "rollback_stages": [
+                    {
+                        "description": "Откат версии на балансировщике",
+                        "duration_raw": "5 мин",
+                        "comment": ""
+                    }
+                ]
+            }
+        },
+        {
+            "id": "tmpl_sys2_plan",
+            "name": "План: Цифровой Кабинет",
+            "as_system": "Цифровой Кабинет",
+            "fp_system": "Core-API",
+            "release_data": {
+                "as_system": "Цифровой Кабинет",
+                "fp_system": "Core-API",
+                "docx_template": "database_work.docx",
+                "description": "Релиз новой функциональности профиля пользователя",
+                "possible_downtime": "До 15 минут",
+                "stages": [
+                    {
+                        "description": "Миграция схемы базы данных",
+                        "duration_raw": "10 мин",
+                        "comment": "Требуется предварительный бэкап"
+                    }
+                ],
+                "rollback_stages": [
+                    {
+                        "description": "Восстановление БД из бэкапа",
+                        "duration_raw": "30 мин",
+                        "comment": ""
+                    }
+                ]
+            }
+        },
+        {
+            "id": "tmpl_sys2_ui",
+            "name": "План: Обновление интерфейса",
+            "as_system": "Цифровой Кабинет",
+            "fp_system": "Web-UI",
+            "release_data": {
+                "as_system": "Цифровой Кабинет",
+                "fp_system": "Web-UI",
+                "description": "Обновление статических файлов и рестарт Nginx",
+                "possible_downtime": "Прерывание сессий пользователей",
+                "stages": [
+                    {
+                        "description": "Загрузка новых ассетов в S3/Nginx",
+                        "duration_raw": "10 мин",
+                        "comment": ""
+                    },
+                    {
+                        "description": "Очистка кэша CDN",
+                        "duration_raw": "5 мин",
+                        "comment": ""
+                    }
+                ],
+                "rollback_stages": [
+                    {
+                        "description": "Переключение симлинка на предыдущую версию",
+                        "duration_raw": "2 мин",
+                        "comment": ""
+                    }
+                ]
+            }
+        },
+        {
+            "id": "tmpl_sys3_prometheus",
+            "name": "План: Update Monitoring Platform",
+            "as_system": "Платформа Мониторинга",
+            "fp_system": "Prometheus-Stack",
+            "release_data": {
+                "as_system": "Платформа Мониторинга",
+                "fp_system": "Prometheus-Stack",
+                "description": "Обновление Helm-чарта Prometheus и Grafana",
+                "possible_downtime": "Отсутствие алертов в течение 5 минут",
+                "stages": [
+                    {
+                        "description": "Snapshot текущих данных",
+                        "duration_raw": "15 мин",
+                        "comment": ""
+                    },
+                    {
+                        "description": "Helm upgrade --install",
+                        "duration_raw": "10 мин",
+                        "comment": "Применение новых манифестов"
+                    },
+                    {
+                        "description": "Проверка доступности дашбордов",
+                        "duration_raw": "5 мин",
+                        "comment": ""
+                    }
+                ],
+                "rollback_stages": [
+                    {
+                        "description": "Helm rollback",
+                        "duration_raw": "5 мин",
+                        "comment": ""
+                    }
+                ]
+            }
+        }
+]

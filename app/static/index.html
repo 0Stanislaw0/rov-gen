@@ -2,63 +2,142 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Генератор РОВ</title>
+    <title>Генератор плана</title>
     <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
-        .section { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
-        .stage { background: #f9f9f9; padding: 10px; margin-bottom: 10px; border-left: 4px solid #007bff; }
-        label { display: block; margin-top: 10px; font-weight: bold; }
-        input, select, textarea { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
-        button { margin-top: 10px; padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 3px; }
+        body { 
+            font-family: 'SBSansText', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f2f2f2; 
+            color: #333;
+        }
+        .app-container { display: grid; grid-template-columns: 320px 1fr 320px; gap: 30px; align-items: flex-start; max-width: 1600px; margin: 0 auto; }
+        .sidebar { position: sticky; top: 20px; max-height: 90vh; overflow-y: auto; }
+        .main-content { min-width: 600px; max-width: 800px; justify-self: center; width: 100%; }
+        .right-spacer { width: 320px; } /* Пустая колонка для центровки */
+        
+        .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid transparent; }
+        .section-work { border-top-color: #21a038; }
+        .section-rollback { border-top-color: #0070ef; }
+        
+        .stage { background: #fdfdfd; padding: 15px; margin-bottom: 15px; border-left: 4px solid #21a038; border-radius: 4px; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee; }
+        .stage.rollback-theme { border-left-color: #0070ef; }
+        
+        .history-item { background: #f8f9fa; padding: 12px; margin-bottom: 10px; border-radius: 6px; display: flex; flex-direction: column; border: 1px solid #e0e0e0; }
+        .history-item-info { margin-bottom: 5px; }
+        .history-item-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+        .history-item-actions button { padding: 5px 10px; font-size: 0.85em; }
+        label { display: block; margin-top: 12px; font-weight: 600; font-size: 0.9em; color: #555; }
+        .label-inline { display: inline-block; margin-right: 10px; }
+        .label-inline input { width: auto; display: inline-block; }
+        .label-inline select { width: auto; display: inline-block; }
+
+        input, select, textarea { width: 100%; padding: 10px; margin-top: 5px; box-sizing: border-box; border: 1px solid #d1d1d1; border-radius: 6px; font-size: 1em; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #21a038; box-shadow: 0 0 0 2px rgba(33, 160, 56, 0.2); }
+        textarea { resize: vertical; min-height: 40px; }
+        
+        button { margin-top: 10px; padding: 10px 20px; cursor: pointer; background: #21a038; color: white; border: none; border-radius: 6px; font-weight: 600; transition: background 0.2s; }
+        button:hover { background: #1e8d31; }
+        
         .error { border-color: red; }
         .error-msg { color: red; font-size: 0.9em; }
+        h1, h2, h3 { color: #000; font-weight: 600; }
+
+        /* Стили для группировки шаблонов */
+        .template-group { margin-bottom: 25px; }
+        .template-group-title { 
+            font-size: 0.75em; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+            padding: 4px 10px; 
+            border-radius: 4px; 
+            margin-bottom: 5px; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #000;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            user-select: none;
+            transition: opacity 0.2s;
+        }
+        .template-group-title:hover { opacity: 0.8; }
+        .template-group-title::after { content: '▼'; font-size: 0.8em; margin-left: 10px; transition: transform 0.2s; }
+        .template-group.collapsed .template-group-title::after { transform: rotate(-90deg); }
+        
+        .template-items { 
+            display: block; 
+            padding-left: 5px;
+        }
+        .template-group.collapsed .template-items { display: none; }
     </style>
 </head>
 <body>
-    <h1>Генерация РОВ</h1>
-    
-    <div class="section">
-        <label>№ релиза</label>
-        <input type="text" id="release_number" required>
-        
-        <label>Дата и время начала (дд.мм.гг ЧЧ:ММ)</label>
-        <input type="text" id="start_date_time" placeholder="18.05.26 23:00">
+    <div class="app-container">
+        <aside class="sidebar">
+            <h2>История</h2>
+            <div class="section" id="history_section">
+                <div id="history_list">Загрузка истории...</div>
+            </div>
+        </aside>
 
-        <label>АС</label>
-        <select id="as_system" onchange="updateFP()"></select>
+        <main class="main-content">
+            <h1>Генерация плана</h1>
+            
+            <div class="section">
+                <label>№ релиза</label>
+                <input type="text" id="release_number" required>
+                
+                <label>Дата и время начала (дд.мм.гг ЧЧ:ММ)</label>
+                <input type="text" id="start_date_time" placeholder="18.05.26 23:00">
 
-        <label>ФП</label>
-        <select id="fp_system"></select>
+                <label>АС</label>
+                <select id="as_system" onchange="updateFP(); updateDefaultTime();"></select>
+
+                <label>ФП</label>
+                <select id="fp_system"></select>
+            </div>
+
+            <div class="section">
+                <label>Ответственный</label>
+                <input type="text" id="responsible" value="Иванов И.И.">
+                <label>Контакты</label>
+                <input type="text" id="contacts" value="+7 (999) 000-00-00">
+                <label>Описание</label>
+                <textarea id="description">Плановые работы</textarea>
+                <label>Возможная недоступность</label>
+                <textarea id="possible_downtime">Обновление системы</textarea>
+            </div>
+
+            <div class="section section-work">
+                <h3 style="color: #21a038;">План работ</h3>
+                <div id="stages_list"></div>
+                <button type="button" onclick="addStage('stages_list')">+ Добавить этап работы</button>
+            </div>
+
+            <div class="section section-rollback">
+                <h3 style="color: #0070ef;">План отката</h3>
+                <div id="rollback_list"></div>
+                <button type="button" onclick="addStage('rollback_list')" style="background: #0070ef;">+ Добавить этап отката</button>
+            </div>
+
+            <button onclick="generateDocx()" style="background: #28a745; width: 100%; font-size: 1.2em; margin-bottom: 10px;">Сгенерировать DOCX + Письмо</button>
+            <button onclick="generateEmailOnly()" style="background: #0070ef; width: 100%; font-size: 1.1em; margin-bottom: 50px;">Только Письмо (без сохранения)</button>
+        </main>
+
+        <aside class="sidebar">
+            <h2>Шаблоны</h2>
+            <div class="section" id="templates_section">
+                <div id="templates_list">Загрузка шаблонов...</div>
+            </div>
+        </aside>
     </div>
-
-    <div class="section">
-        <label>Ответственный</label>
-        <input type="text" id="responsible" value="Иванов И.И.">
-        <label>Контакты</label>
-        <input type="text" id="contacts" value="+7-999-000-00-00">
-        <label>Описание</label>
-        <textarea id="description">Плановые работы</textarea>
-        <label>Возможная недоступность</label>
-        <textarea id="possible_downtime">Обновление системы</textarea>
-    </div>
-
-    <div class="section">
-        <h3>План работ</h3>
-        <div id="stages_list"></div>
-        <button type="button" onclick="addStage('stages_list')">+ Добавить этап работы</button>
-    </div>
-
-    <div class="section">
-        <h3>План отката</h3>
-        <div id="rollback_list"></div>
-        <button type="button" onclick="addStage('rollback_list')">+ Добавить этап отката</button>
-    </div>
-
-    <button onclick="generateDocx()" style="background: green; width: 100%; font-size: 1.2em;">Сгенерировать DOCX</button>
 
     <script>
         let config = {};
+        let currentDocxTemplate = "template.docx";
 
+        // Загрузка конфигурации с сервера
         async function loadConfig() {
             try {
                 const res = await fetch('/config');
@@ -66,6 +145,10 @@
                 
                 config = await res.json();
                 
+                // Установка дефолтов из конфига
+                document.getElementById('responsible').value = config.default_responsible || "Иванов И.И.";
+                document.getElementById('contacts').value = config.default_contacts || "+7-999-000-00-00";
+
                 document.getElementById('release_number').placeholder = config.release_placeholder || "";
                 const asSelect = document.getElementById('as_system');
                 asSelect.innerHTML = '';
@@ -74,11 +157,16 @@
                     opt.value = as; opt.textContent = as;
                     asSelect.appendChild(opt);
                 });
+
                 updateFP();
+                updateDefaultTime();
+                await loadHistory(); // Загружаем историю после загрузки конфига
+                await loadTemplates(); // Загружаем шаблоны
             } catch (e) {
                 console.error("Ошибка загрузки конфига:", e);
             }
         }
+        
 
         function updateFP() {
             const asVal = document.getElementById('as_system').value;
@@ -92,35 +180,247 @@
             });
         }
 
-        function addStage(containerId) {
-            const div = document.createElement('div');
-            div.className = 'stage';
-            div.innerHTML = `
-                <label>Описание работ</label>
-                <input type="text" class="s-desc" required>
-                <label>Длительность (например: 1 час, 30 мин)</label>
-                <input type="text" class="s-dur" placeholder="60 мин" required>
-                <label>Комментарий</label>
-                <input type="text" class="s-comm">
-                <button onclick="this.parentElement.remove()" style="background:red">Удалить</button>
-            `;
-            document.getElementById(containerId).appendChild(div);
+        function updateDefaultTime() {
+            const asVal = document.getElementById('as_system').value;
+            const startTimes = config.as_start_times || {};
+            const defaultTime = startTimes[asVal] || "23:00";
+            const timeField = document.getElementById('start_date_time');
+            
+            let datePart;
+            if (timeField.value && timeField.value.includes(' ')) {
+                datePart = timeField.value.split(' ')[0];
+            } else {
+                const now = new Date();
+                datePart = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getFullYear()).slice(-2)}`;
+            }
+            
+            timeField.value = `${datePart} ${defaultTime}`;
         }
 
-        async function generateDocx() {
-            const collectStages = (containerId) => {
-                const items = [];
-                document.getElementById(containerId).querySelectorAll('.stage').forEach(s => {
-                    items.push({
-                        description: s.querySelector('.s-desc').value,
-                        duration_raw: s.querySelector('.s-dur').value,
-                        comment: s.querySelector('.s-comm').value
-                    });
-                });
-                return items;
-            };
+        // Добавление нового этапа (работы или отката)
+        function addStage(containerId, stageData = { description: '', duration_raw: '', comment: '' }, beforeElement = null) {
+            const isRollback = containerId === 'rollback_list';
+            const accentColor = isRollback ? '#0070ef' : '#21a038';
+            const btnBg = isRollback ? '#f0f7ff' : '#e8f5e9';
+            const themeClass = isRollback ? 'rollback-theme' : '';
 
-            const data = {
+            const div = document.createElement('div');
+            div.className = `stage ${themeClass}`;
+            div.innerHTML = `
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                    <button type="button" onclick="addStage('${containerId}', undefined, this.closest('.stage'))" style="margin: 0; padding: 4px 12px; background: ${btnBg}; color: ${accentColor}; font-size: 0.85em; width: auto; border: 1px solid ${accentColor};">+ вставить выше</button>
+                </div>
+                <label>Описание работ</label>
+                <textarea class="s-desc" required>${stageData.description}</textarea>
+                <label>Длительность (например: 1 час, 30 мин)</label>
+                <input type="text" class="s-dur" value="${stageData.duration_raw}" placeholder="60 мин" required>
+                <label>Комментарий</label>
+                <textarea class="s-comm">${stageData.comment}</textarea>
+                <button type="button" onclick="this.closest('.stage').remove()" style="background:#fce8e8; color: #eb5757; border: 1px solid #eb5757; width: 100%;">Удалить этап</button>
+            `;
+            const container = document.getElementById(containerId);
+            if (beforeElement) {
+                container.insertBefore(div, beforeElement);
+            } else {
+                container.appendChild(div);
+            }
+        }
+
+        // Очистка списка этапов
+        function clearStages(containerId) {
+            document.getElementById(containerId).innerHTML = '';
+        }
+
+        // Загрузка истории генераций
+        async function loadHistory() {
+            const historyListDiv = document.getElementById('history_list');
+            historyListDiv.innerHTML = 'Загрузка истории...';
+            try {
+                const response = await fetch('/history');
+                if (!response.ok) throw new Error("Не удалось загрузить историю");
+                const history = await response.json();
+
+                historyListDiv.innerHTML = ''; // Очищаем "Загрузка истории..."
+                if (history.length === 0) {
+                    historyListDiv.innerHTML = 'История пуста.';
+                    return;
+                }
+
+                history.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'history-item';
+                    const timestamp = new Date(item.timestamp).toLocaleString('ru-RU');
+                    itemDiv.innerHTML = `
+                        <div class="history-item-info">
+                            <strong>${item.release_number}</strong> (${item.as_system} / ${item.fp_system})<br>
+                            <small>${timestamp}</small>
+                        </div>
+                        <div class="history-item-actions">
+                            <button onclick="downloadHistoryItem('${item.disk_filename}', '${encodeURIComponent(item.generated_filename)}')">DOCX</button>
+                            ${item.email_disk_filename ? 
+                                `<button onclick="downloadHistoryItem('${item.email_disk_filename}', '${encodeURIComponent(item.email_generated_filename)}')" style="background: #6c757d;">
+                                    EML
+                                 </button>` : 
+                                ''}
+                            <button onclick="loadHistoryItemToForm('${item.id}')">Загрузить в форму</button>
+                            <button onclick="deleteHistoryItem('${item.id}')" style="background: #dc3545;">Удалить</button>
+                        </div>
+                    `;
+                    historyListDiv.appendChild(itemDiv);
+                });
+
+            } catch (e) {
+                console.error("Ошибка загрузки истории:", e);
+                historyListDiv.innerHTML = `Ошибка загрузки истории: ${e.message}`;
+            }
+        }
+
+        // Удаление записи
+        async function deleteHistoryItem(itemId) {
+            if (!confirm("Вы уверены, что хотите удалить эту запись и файл с сервера?")) return;
+            try {
+                const response = await fetch(`/history/${itemId}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error("Ошибка при удалении");
+                
+                // Перезагружаем список
+                await loadHistory();
+            } catch (e) {
+                alert("Не удалось удалить: " + e.message);
+            }
+        }
+
+        // Скачивание файла из истории
+        function downloadHistoryItem(diskFilename, encodedGeneratedFilename) {
+            const url = `/download/${diskFilename}?pretty_name=${encodedGeneratedFilename}`;
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = decodeURIComponent(encodedGeneratedFilename); // Имя файла для сохранения
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+
+        // Универсальная функция заполнения формы данными
+        function fillForm(data) {
+            document.getElementById('release_number').value = data.release_number || '';
+            currentDocxTemplate = data.docx_template || "template.docx";
+            
+            // Установка АС и ФП (важен порядок для синхронизации зависимых списков)
+            document.getElementById('as_system').value = data.as_system || '';
+            updateFP();
+            document.getElementById('fp_system').value = data.fp_system || '';
+
+            // Если в данных есть дата (история), ставим её. Если нет (шаблон), ставим дефолт для АС.
+            if (data.start_date_time) {
+                document.getElementById('start_date_time').value = data.start_date_time;
+            } else {
+                updateDefaultTime();
+            }
+
+            document.getElementById('responsible').value = data.responsible || config.default_responsible || '';
+            document.getElementById('contacts').value = data.contacts || config.default_contacts || '';
+            document.getElementById('description').value = data.description || 'Плановые работы';
+            document.getElementById('possible_downtime').value = data.possible_downtime || '';
+
+            clearStages('stages_list');
+            (data.stages || []).forEach(stage => addStage('stages_list', stage));
+            clearStages('rollback_list');
+            (data.rollback_stages || []).forEach(stage => addStage('rollback_list', stage));
+        }
+
+        // Загрузка данных из истории в форму
+        async function loadHistoryItemToForm(itemId) {
+            try {
+                const response = await fetch(`/history/${itemId}`);
+                if (!response.ok) throw new Error("Не удалось загрузить данные истории");
+                const data = await response.json();
+                fillForm(data);
+            } catch (e) {
+                alert("Ошибка загрузки данных в форму: " + e.message);
+            }
+        }
+
+        // Вспомогательная функция для генерации цвета на основе индекса системы
+        function getSystemColor(index) {
+            const palette = ['#90caf9', '#a5d6a7', '#ffcc80', '#ce93d8', '#f48fb1', '#c5e1a5', '#80cbc4'];
+            return palette[index % palette.length];
+        }
+
+        let templatesData = [];
+        async function loadTemplates() {
+            const listDiv = document.getElementById('templates_list');
+            listDiv.innerHTML = 'Загрузка...';
+            try {
+                const res = await fetch('/templates');
+                templatesData = await res.json();
+                listDiv.innerHTML = '';
+
+                if (!templatesData.length) {
+                    listDiv.innerHTML = '<small>Шаблоны не настроены в templates.json</small>';
+                    return;
+                }
+
+                // Группируем шаблоны по АС
+                const grouped = templatesData.reduce((acc, t) => {
+                    if (!acc[t.as_system]) acc[t.as_system] = [];
+                    acc[t.as_system].push(t);
+                    return acc;
+                }, {});
+
+                // Отрисовываем группы
+                Object.keys(grouped).sort().forEach((asName, idx) => {
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = 'template-group collapsed'; // По умолчанию свернуты
+                    
+                    const color = getSystemColor(idx);
+                    
+                    const title = document.createElement('div');
+                    title.className = 'template-group-title';
+                    title.style.backgroundColor = color;
+                    title.innerHTML = `<span>${asName}</span>`;
+                    title.onclick = () => groupDiv.classList.toggle('collapsed');
+                    
+                    groupDiv.appendChild(title);
+
+                    const itemsDiv = document.createElement('div');
+                    itemsDiv.className = 'template-items';
+
+                    grouped[asName].forEach(t => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'history-item';
+                        itemDiv.style.borderLeft = `4px solid ${color}`; // Подсвечиваем край тем же цветом
+                        itemDiv.innerHTML = `
+                            <div class="history-item-info">
+                                <strong>${t.name}</strong><br><small>${t.fp_system}</small>
+                            </div>
+                            <div class="history-item-actions">
+                                <button onclick="applyTemplate('${t.id}')">Загрузить</button>
+                            </div>
+                        `;
+                        itemsDiv.appendChild(itemDiv);
+                    });
+                    groupDiv.appendChild(itemsDiv);
+                    listDiv.appendChild(groupDiv);
+                });
+            } catch (e) {
+                listDiv.innerHTML = 'Ошибка загрузки шаблонов';
+            }
+        }
+
+        function applyTemplate(id) {
+            const t = templatesData.find(x => x.id === id);
+            if (t) fillForm(t.release_data);
+        }
+
+        // Сбор данных из формы
+        function getFormData() {
+            const collect = (id) => Array.from(document.getElementById(id).querySelectorAll('.stage')).map(s => ({
+                description: s.querySelector('.s-desc').value,
+                duration_raw: s.querySelector('.s-dur').value,
+                comment: s.querySelector('.s-comm').value
+            }));
+            return {
                 release_number: document.getElementById('release_number').value,
                 start_date_time: document.getElementById('start_date_time').value,
                 as_system: document.getElementById('as_system').value,
@@ -129,9 +429,14 @@
                 contacts: document.getElementById('contacts').value,
                 description: document.getElementById('description').value,
                 possible_downtime: document.getElementById('possible_downtime').value,
-                stages: collectStages('stages_list'),
-                rollback_stages: collectStages('rollback_list')
+                stages: collect('stages_list'),
+                rollback_stages: collect('rollback_list'),
+                docx_template: currentDocxTemplate
             };
+        }
+
+        async function generateDocx() {
+            const data = getFormData();
 
             if (!data.release_number || !data.start_date_time || data.stages.length === 0) {
                 alert("Заполните обязательные поля и добавьте хотя бы один этап");
@@ -182,6 +487,7 @@
                 a.click();
                 
                 // Освобождаем память через 10 секунд
+                // Теперь это не так критично, так как файл остается на сервере, но хорошая практика
                 setTimeout(() => {
                     window.URL.revokeObjectURL(url);
                     a.remove();
@@ -189,6 +495,45 @@
 
             } catch (e) {
                 alert("Ошибка: " + e.message);
+            } finally {
+                await loadHistory(); // Обновляем историю после успешной генерации
+            }
+        }
+
+        async function generateEmailOnly() {
+            const data = getFormData();
+            if (!data.release_number) return alert("Введите номер релиза");
+
+            try {
+                const response = await fetch('/generate-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) throw new Error(await response.text());
+
+                const blob = await response.blob();
+                let filename = "email.eml";
+                const disposition = response.headers.get('Content-Disposition');
+                if (disposition && disposition.includes("filename*=utf-8''")) {
+                    filename = decodeURIComponent(disposition.split("filename*=utf-8''")[1]);
+                }
+
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                }, 5000);
+
+            } catch (e) {
+                alert("Ошибка при генерации письма: " + e.message);
             }
         }
 
