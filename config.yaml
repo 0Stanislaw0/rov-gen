@@ -3,7 +3,10 @@ default_responsible: "Ковалев С.А."
 default_contacts: "+7 (999) 000-00-00"
 
 as_start_times:
-  "ЕФС Сотрудники Smartcare": "23:00"
+  "ЕФС Сотрудники Smartcare":
+    "default": "23:00"
+    "Gateway": "20:00"
+    "Config-Service": "21:30"
   "Цифровой Кабинет": "21:00"
   "Платформа Мониторинга": "22:00"
 

@@ -95,7 +95,7 @@
                 <select id="as_system" onchange="updateFP(); updateDefaultTime();"></select>
 
                 <label>ФП</label>
-                <select id="fp_system"></select>
+                <select id="fp_system" onchange="updateDefaultTime();"></select>
             </div>
 
             <div class="section">
@@ -182,8 +182,21 @@
 
         function updateDefaultTime() {
             const asVal = document.getElementById('as_system').value;
+            const fpVal = document.getElementById('fp_system').value;
             const startTimes = config.as_start_times || {};
-            const defaultTime = startTimes[asVal] || "23:00";
+            
+            let defaultTime = "23:00";
+            const asConfig = startTimes[asVal];
+
+            if (asConfig) {
+                if (typeof asConfig === 'string') {
+                    defaultTime = asConfig;
+                } else if (typeof asConfig === 'object') {
+                    // Ищем время для конкретной ФП, иначе берем default для АС, иначе глобальный default
+                    defaultTime = asConfig[fpVal] || asConfig["default"] || "23:00";
+                }
+            }
+
             const timeField = document.getElementById('start_date_time');
             
             let datePart;
