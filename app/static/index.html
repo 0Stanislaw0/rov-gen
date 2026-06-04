@@ -42,6 +42,34 @@
         .error { border-color: red; }
         .error-msg { color: red; font-size: 0.9em; }
         h1, h2, h3 { color: #000; font-weight: 600; }
+
+        /* Стили для группировки шаблонов */
+        .template-group { margin-bottom: 25px; }
+        .template-group-title { 
+            font-size: 0.75em; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+            padding: 4px 10px; 
+            border-radius: 4px; 
+            margin-bottom: 5px; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #000;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            user-select: none;
+            transition: opacity 0.2s;
+        }
+        .template-group-title:hover { opacity: 0.8; }
+        .template-group-title::after { content: '▼'; font-size: 0.8em; margin-left: 10px; transition: transform 0.2s; }
+        .template-group.collapsed .template-group-title::after { transform: rotate(-90deg); }
+        
+        .template-items { 
+            display: block; 
+            padding-left: 5px;
+        }
+        .template-group.collapsed .template-items { display: none; }
     </style>
 </head>
 <body>
@@ -311,6 +339,12 @@
             }
         }
 
+        // Вспомогательная функция для генерации цвета на основе индекса системы
+        function getSystemColor(index) {
+            const palette = ['#90caf9', '#a5d6a7', '#ffcc80', '#ce93d8', '#f48fb1', '#c5e1a5', '#80cbc4'];
+            return palette[index % palette.length];
+        }
+
         let templatesData = [];
         async function loadTemplates() {
             const listDiv = document.getElementById('templates_list');
@@ -319,22 +353,53 @@
                 const res = await fetch('/templates');
                 templatesData = await res.json();
                 listDiv.innerHTML = '';
+
                 if (!templatesData.length) {
                     listDiv.innerHTML = '<small>Шаблоны не настроены в templates.json</small>';
                     return;
                 }
-                templatesData.forEach(t => {
-                    const div = document.createElement('div');
-                    div.className = 'history-item';
-                    div.innerHTML = `
-                        <div class="history-item-info">
-                            <strong>${t.name}</strong><br><small>${t.as_system} / ${t.fp_system}</small>
-                        </div>
-                        <div class="history-item-actions">
-                            <button onclick="applyTemplate('${t.id}')">Загрузить в форму</button>
-                        </div>
-                    `;
-                    listDiv.appendChild(div);
+
+                // Группируем шаблоны по АС
+                const grouped = templatesData.reduce((acc, t) => {
+                    if (!acc[t.as_system]) acc[t.as_system] = [];
+                    acc[t.as_system].push(t);
+                    return acc;
+                }, {});
+
+                // Отрисовываем группы
+                Object.keys(grouped).sort().forEach((asName, idx) => {
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = 'template-group collapsed'; // По умолчанию свернуты
+                    
+                    const color = getSystemColor(idx);
+                    
+                    const title = document.createElement('div');
+                    title.className = 'template-group-title';
+                    title.style.backgroundColor = color;
+                    title.innerHTML = `<span>${asName}</span>`;
+                    title.onclick = () => groupDiv.classList.toggle('collapsed');
+                    
+                    groupDiv.appendChild(title);
+
+                    const itemsDiv = document.createElement('div');
+                    itemsDiv.className = 'template-items';
+
+                    grouped[asName].forEach(t => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'history-item';
+                        itemDiv.style.borderLeft = `4px solid ${color}`; // Подсвечиваем край тем же цветом
+                        itemDiv.innerHTML = `
+                            <div class="history-item-info">
+                                <strong>${t.name}</strong><br><small>${t.fp_system}</small>
+                            </div>
+                            <div class="history-item-actions">
+                                <button onclick="applyTemplate('${t.id}')">Загрузить</button>
+                            </div>
+                        `;
+                        itemsDiv.appendChild(itemDiv);
+                    });
+                    groupDiv.appendChild(itemsDiv);
+                    listDiv.appendChild(groupDiv);
                 });
             } catch (e) {
                 listDiv.innerHTML = 'Ошибка загрузки шаблонов';
