@@ -62,7 +62,10 @@ def generate_report(data: ReleaseData):
         context, system_meta = prepare_release_context(data)
         clean_docx, disk_docx, clean_eml, disk_eml = get_filenames(data)
         
-        tpl = BASE_DIR / "templates" / "template.docx"
+        # Берем имя шаблона из данных или используем стандартный
+        tpl_name = data.docx_template or "template.docx"
+        tpl = BASE_DIR / "templates" / Path(tpl_name).name
+
         if not tpl.exists():
             raise FileNotFoundError(f"Шаблон не найден: {tpl}")
 

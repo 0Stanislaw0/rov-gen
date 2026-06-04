@@ -135,6 +135,7 @@
 
     <script>
         let config = {};
+        let currentDocxTemplate = "template.docx";
 
         // Загрузка конфигурации с сервера
         async function loadConfig() {
@@ -303,6 +304,7 @@
         // Универсальная функция заполнения формы данными
         function fillForm(data) {
             document.getElementById('release_number').value = data.release_number || '';
+            currentDocxTemplate = data.docx_template || "template.docx";
             
             // Установка АС и ФП (важен порядок для синхронизации зависимых списков)
             document.getElementById('as_system').value = data.as_system || '';
@@ -428,7 +430,8 @@
                 description: document.getElementById('description').value,
                 possible_downtime: document.getElementById('possible_downtime').value,
                 stages: collect('stages_list'),
-                rollback_stages: collect('rollback_list')
+                rollback_stages: collect('rollback_list'),
+                docx_template: currentDocxTemplate
             };
         }
 

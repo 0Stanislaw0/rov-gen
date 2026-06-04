@@ -4,9 +4,13 @@ default_contacts: "+7 (999) 000-00-00"
 
 as_start_times:
   "ЕФС Сотрудники Smartcare": "23:00"
+  "Цифровой Кабинет": "21:00"
+  "Платформа Мониторинга": "22:00"
 
 fp_mapping:
   ЕФС Сотрудники Smartcare: ["Smartcare", "Gateway","Config-Service"]
+  Цифровой Кабинет: ["Core-API", "Web-UI"]
+  "Платформа Мониторинга": ["Prometheus-Stack", "Grafana-UI"]
 
 system_metadata:
   ЕФС Сотрудники Smartcare:
@@ -26,4 +30,39 @@ system_metadata:
       email_to: ["another-recipient@example.com"]
       email_recipients: []
       block_val: "Цифровой блок"
+    Config-Service:
+      approver_name: "Александров Александр"
+      approver_title: "Тимлид DevOps"
+      owner_name: "Николаев Николай"
+      owner_contacts: "nick@example.com"
+      email_to: ["devops-team@example.com"]
+      email_recipients: ["monitoring@example.com"]
+      block_val: "Инфраструктурный блок"
+  Цифровой Кабинет:
+    Core-API:
+      approver_name: "Дмитриев Дмитрий"
+      approver_title: "CTO"
+      owner_name: "Сергеев Сергей"
+      owner_contacts: "serg@example.com"
+      email_to: ["core-dev@example.com"]
+      email_recipients: []
+      block_val: "Продуктовый блок"
+    Web-UI:
+      approver_name: "Егоров Егор"
+      approver_title: "Head of Frontend"
+      owner_name: "Антонов Антон"
+      owner_contacts: "ant@example.com"
+      email_to: ["frontend-team@example.com"]
+      email_recipients: []
+      block_val: "Продуктовый блок"
+  Платформа Мониторинга:
+    Prometheus-Stack:
+      approver_name: "Михайлов Михаил"
+      approver_title: "Lead SRE"
+      owner_name: "Федоров Федор"
+      owner_contacts: "fed@example.com"
+      email_to: ["sre-alerts@example.com"]
+      email_recipients: ["it-ops@example.com"]
+      block_val: "Технологический блок"
+
  
