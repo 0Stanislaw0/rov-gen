@@ -23,6 +23,14 @@ def get_config():
     res_config = CONFIG.copy()
     if "as_list" not in res_config and "fp_mapping" in res_config:
         res_config["as_list"] = list(res_config["fp_mapping"].keys())
+    
+    # Сканируем папку templates на наличие docx файлов
+    templates_dir = BASE_DIR / "templates"
+    if templates_dir.exists():
+        res_config["available_docx_templates"] = [f.name for f in templates_dir.glob("*.docx") if not f.name.startswith("~$")]
+    else:
+        res_config["available_docx_templates"] = ["template.docx"]
+        
     return res_config
 
 @app.get("/history")

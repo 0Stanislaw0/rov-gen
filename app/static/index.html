@@ -96,6 +96,9 @@
 
                 <label>ФП</label>
                 <select id="fp_system" onchange="updateDefaultTime();"></select>
+
+                <label>Шаблон документа (.docx)</label>
+                <select id="docx_template_select" onchange="currentDocxTemplate = this.value"></select>
             </div>
 
             <div class="section">
@@ -156,6 +159,15 @@
                     let opt = document.createElement('option');
                     opt.value = as; opt.textContent = as;
                     asSelect.appendChild(opt);
+                });
+
+                // Популяция списка доступных шаблонов Word из конфига
+                const tplSelect = document.getElementById('docx_template_select');
+                tplSelect.innerHTML = '';
+                (config.available_docx_templates || ["template.docx"]).forEach(tpl => {
+                    let opt = document.createElement('option');
+                    opt.value = tpl; opt.textContent = tpl;
+                    tplSelect.appendChild(opt);
                 });
 
                 updateFP();
@@ -318,6 +330,7 @@
         function fillForm(data) {
             document.getElementById('release_number').value = data.release_number || '';
             currentDocxTemplate = data.docx_template || "template.docx";
+            document.getElementById('docx_template_select').value = currentDocxTemplate;
             
             // Установка АС и ФП (важен порядок для синхронизации зависимых списков)
             document.getElementById('as_system').value = data.as_system || '';
